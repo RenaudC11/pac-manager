@@ -59,7 +59,7 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.5.0</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.6.0</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
@@ -80,19 +80,21 @@ button{font-family:inherit;cursor:pointer}
   <div id="p-system" style="display:none"></div>
 </div>
 <script>
-const ANTHROPIC_API_KEY = '__ANTHROPIC_API_KEY__';
-const SK = 'pac-mgr';
+// Clé Gemini injectée par run.sh au démarrage du container
+var GEMINI_API_KEY = '__GEMINI_API_KEY__';
 
-// Migration depuis anciennes clés versionnées
+// Stockage permanent
+var SK = 'pac-mgr';
 (function migrate() {
   if (localStorage.getItem(SK)) return;
-  for (const k of ['pac-mgr-v5','pac-mgr-v4','pac-mgr-v3','pac-mgr-v2']) {
-    const v = localStorage.getItem(k);
-    if (v) { localStorage.setItem(SK, v); localStorage.removeItem(k); return; }
+  var old = ['pac-mgr-v5','pac-mgr-v4','pac-mgr-v3','pac-mgr-v2'];
+  for (var i=0; i<old.length; i++) {
+    var v = localStorage.getItem(old[i]);
+    if (v) { localStorage.setItem(SK, v); localStorage.removeItem(old[i]); return; }
   }
 })();
 
-const DEF = {
+var DEF = {
   system: {haUrl:'http://homeassistant.local:8123',haToken:'',lat:45.75,lon:4.85,refreshMin:5},
   functional: {loiEauA:43.0,loiEauB:-1.1,tBalance:16.0,consigneJour:18,consigneNuit:18,heureNuit:'21:30',heureJour:'05:30',consigneECS:50,hystECS:5},
   entities: {tExt:'',tEauDep:'',copInst:'',puissElec:'',puissTherm:''},
@@ -101,7 +103,7 @@ const DEF = {
 
 function loadCfg() {
   try {
-    const s = JSON.parse(localStorage.getItem(SK));
+    var s = JSON.parse(localStorage.getItem(SK));
     if (!s) return JSON.parse(JSON.stringify(DEF));
     return {
       system: Object.assign({}, DEF.system, s.system),
@@ -120,8 +122,10 @@ function tEauCalc(t) { return Math.max(20, Math.min(55, cfg.functional.loiEauA +
 function fmt(v, d) { d = d === undefined ? 1 : d; return v != null ? parseFloat(v).toFixed(d) : '—'; }
 function isNight() {
   var n = new Date(), cur = n.getHours()*60 + n.getMinutes();
-  var nh = parseInt(cfg.functional.heureNuit.split(':')[0]), nm = parseInt(cfg.functional.heureNuit.split(':')[1]);
-  var dh = parseInt(cfg.functional.heureJour.split(':')[0]), dm = parseInt(cfg.functional.heureJour.split(':')[1]);
+  var nh = parseInt(cfg.functional.heureNuit.split(':')[0]);
+  var nm = parseInt(cfg.functional.heureNuit.split(':')[1]);
+  var dh = parseInt(cfg.functional.heureJour.split(':')[0]);
+  var dm = parseInt(cfg.functional.heureJour.split(':')[1]);
   var ni = nh*60+nm, di = dh*60+dm;
   return ni > di ? (cur >= ni || cur < di) : (cur >= ni && cur < di);
 }
@@ -144,79 +148,65 @@ function mk(tag, cls, html) {
 
 function appRefresh() {
   setStatus('#d29922', 'Actualisation…');
-  fetch('https://api.open-meteo.com/v1/forecast?latitude=' + cfg.system.lat + '&longitude=' + cfg.system.lon + '&current_weather=true&hourly=temperature_2m,cloud_cover&forecast_days=2&timezone=Europe%2FParis')
-    .then(function(r) { return r.json(); })
-    .then(function(d) { weather = d; })
-    .catch(function() { weather = null; })
+  fetch('https://api.open-meteo.com/v1/forecast?latitude='+cfg.system.lat+'&longitude='+cfg.system.lon+'&current_weather=true&hourly=temperature_2m,cloud_cover&forecast_days=2&timezone=Europe%2FParis')
+    .then(function(r){ return r.json(); }).then(function(d){ weather=d; }).catch(function(){ weather=null; })
     .then(function() {
-      if (!cfg.system.haToken) { lastUpd = new Date(); setStatus('#3fb950', lastUpd.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})); renderCurrent(); return; }
+      if (!cfg.system.haToken) { lastUpd=new Date(); setStatus('#3fb950',lastUpd.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})); renderCurrent(); return; }
       var ids = Object.values(cfg.entities).concat(cfg.rooms.reduce(function(a,r){ return a.concat([r.entityTemp,r.entitySetpoint]); },[])).filter(Boolean);
-      return Promise.all(ids.map(function(id) {
-        return haGet(id).then(function(d) { haData[id] = d; }).catch(function() {});
-      }));
+      return Promise.all(ids.map(function(id){ return haGet(id).then(function(d){ haData[id]=d; }).catch(function(){}); }));
     })
-    .then(function() {
-      lastUpd = new Date();
-      setStatus('#3fb950', lastUpd.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
-      renderCurrent();
-    });
+    .then(function() { lastUpd=new Date(); setStatus('#3fb950',lastUpd.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})); renderCurrent(); });
 }
 
 function showTab(id) {
-  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
-  var btn = document.getElementById('tb-'+id);
-  if (btn) btn.classList.add('active');
-  ['dashboard','ai','functional','system'].forEach(function(t) {
-    var p = document.getElementById('p-'+t);
-    if (p) p.style.display = t === id ? 'block' : 'none';
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  var btn = document.getElementById('tb-'+id); if (btn) btn.classList.add('active');
+  ['dashboard','ai','functional','system'].forEach(function(t){
+    var p = document.getElementById('p-'+t); if (p) p.style.display = t===id?'block':'none';
   });
-  currentTab = id;
-  renderCurrent();
+  currentTab = id; renderCurrent();
 }
 
 function renderCurrent() {
-  if (currentTab === 'dashboard') renderDashboard();
-  else if (currentTab === 'ai') renderAI();
-  else if (currentTab === 'functional') renderFunctional();
-  else if (currentTab === 'system') renderSystem();
+  if (currentTab==='dashboard') renderDashboard();
+  else if (currentTab==='ai') renderAI();
+  else if (currentTab==='functional') renderFunctional();
+  else if (currentTab==='system') renderSystem();
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────────
 function renderDashboard() {
-  var div = document.getElementById('p-dashboard'); if (!div) return; div.innerHTML = '';
-  var tExt = cfg.entities.tExt && haData[cfg.entities.tExt] ? parseFloat(haData[cfg.entities.tExt].state) : (weather && weather.current_weather ? weather.current_weather.temperature : null);
-  var tEauRec = tExt !== null ? tEauCalc(tExt) : null;
-  var tEauAct = cfg.entities.tEauDep && haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
-  var cop = cfg.entities.copInst && haData[cfg.entities.copInst] ? parseFloat(haData[cfg.entities.copInst].state) : null;
-  var pw = cfg.entities.puissElec && haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state) : null;
+  var div = document.getElementById('p-dashboard'); if (!div) return; div.innerHTML='';
+  var tExt = cfg.entities.tExt && haData[cfg.entities.tExt] ? parseFloat(haData[cfg.entities.tExt].state) : (weather&&weather.current_weather?weather.current_weather.temperature:null);
+  var tEauRec = tExt!==null ? tEauCalc(tExt) : null;
+  var tEauAct = cfg.entities.tEauDep&&haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
+  var cop = cfg.entities.copInst&&haData[cfg.entities.copInst] ? parseFloat(haData[cfg.entities.copInst].state) : null;
+  var pw = cfg.entities.puissElec&&haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state) : null;
   var night = isNight();
-
   var mg = mk('div','g-auto');
-  [
-    ['T° extérieure', tExt!==null?fmt(tExt):null, '°C', weather?'Open-Meteo':'—', '#58a6ff'],
-    ['T° eau actuelle', tEauAct!==null?fmt(tEauAct):null, '°C', tEauAct?'HA':'Non configuré', '#f59e0b'],
-    ['T° eau cible', tEauRec!==null?fmt(tEauRec):null, '°C', 'Loi d\'eau', '#d29922'],
-    ['COP', cop!==null?fmt(cop,2):null, '', cop?(cop>4?'Excellent':cop>3?'Bon':'Moyen'):'', '#3fb950'],
-    ['Puissance', pw!==null?String(Math.round(pw)):null, 'W', 'PAC', '#f85149'],
-    ['Mode', night?'Nuit':'Jour', '', 'Consigne '+(night?cfg.functional.consigneNuit:cfg.functional.consigneJour)+'°C', night?'#58a6ff':'#f59e0b']
-  ].forEach(function(x) {
-    var c = mk('div','metric'); c.style.borderLeft = '3px solid '+x[4];
-    c.innerHTML = '<div class="lbl">'+x[0]+'</div><div class="mval">'+(x[1]||'—')+(x[2]?'<span style="font-size:12px;color:#6b7280;margin-left:2px">'+x[2]+'</span>':'')+'</div>'+(x[3]?'<div style="font-size:10px;color:#6b7280;margin-top:3px">'+x[3]+'</div>':'');
+  [['T° extérieure',tExt!==null?fmt(tExt):null,'°C',weather?'Open-Meteo':'—','#58a6ff'],
+   ['T° eau actuelle',tEauAct!==null?fmt(tEauAct):null,'°C',tEauAct?'HA':'Non configuré','#f59e0b'],
+   ['T° eau cible',tEauRec!==null?fmt(tEauRec):null,'°C','Loi d\'eau','#d29922'],
+   ['COP',cop!==null?fmt(cop,2):null,'',cop?(cop>4?'Excellent':cop>3?'Bon':'Moyen'):'','#3fb950'],
+   ['Puissance',pw!==null?String(Math.round(pw)):null,'W','PAC','#f85149'],
+   ['Mode',night?'Nuit':'Jour','','Consigne '+(night?cfg.functional.consigneNuit:cfg.functional.consigneJour)+'°C',night?'#58a6ff':'#f59e0b']
+  ].forEach(function(x){
+    var c=mk('div','metric'); c.style.borderLeft='3px solid '+x[4];
+    c.innerHTML='<div class="lbl">'+x[0]+'</div><div class="mval">'+(x[1]||'—')+(x[2]?'<span style="font-size:12px;color:#6b7280;margin-left:2px">'+x[2]+'</span>':'')+'</div>'+(x[3]?'<div style="font-size:10px;color:#6b7280;margin-top:3px">'+x[3]+'</div>':'');
     mg.append(c);
   });
   div.append(mg);
 
-  if (cfg.rooms.length > 0) {
-    var rh = mk('div');
-    rh.innerHTML = '<div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em">Pièces Tado</div>';
-    var rg = mk('div','g-rooms');
-    cfg.rooms.forEach(function(r) {
-      var t = haData[r.entityTemp] ? haData[r.entityTemp].state : null;
-      var sp = haData[r.entitySetpoint] ? (haData[r.entitySetpoint].attributes && haData[r.entitySetpoint].attributes.temperature ? haData[r.entitySetpoint].attributes.temperature : haData[r.entitySetpoint].state) : null;
-      var d = t && sp ? parseFloat(t)-parseFloat(sp) : null;
-      var col = d===null?'#6b7280':d>=0?'#3fb950':d<-1.5?'#f85149':'#d29922';
-      var c = mk('div','rcard'); c.style.borderTopColor = col;
-      c.innerHTML = '<div style="font-size:11px;color:#8b949e;margin-bottom:5px;font-weight:500">'+r.name+'</div>'
+  if (cfg.rooms.length>0) {
+    var rh=mk('div'); rh.innerHTML='<div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em">Pièces Tado</div>';
+    var rg=mk('div','g-rooms');
+    cfg.rooms.forEach(function(r){
+      var t=haData[r.entityTemp]?haData[r.entityTemp].state:null;
+      var sp=haData[r.entitySetpoint]?(haData[r.entitySetpoint].attributes&&haData[r.entitySetpoint].attributes.temperature?haData[r.entitySetpoint].attributes.temperature:haData[r.entitySetpoint].state):null;
+      var d=t&&sp?parseFloat(t)-parseFloat(sp):null;
+      var col=d===null?'#6b7280':d>=0?'#3fb950':d<-1.5?'#f85149':'#d29922';
+      var c=mk('div','rcard'); c.style.borderTopColor=col;
+      c.innerHTML='<div style="font-size:11px;color:#8b949e;margin-bottom:5px;font-weight:500">'+r.name+'</div>'
         +'<div style="display:flex;align-items:baseline;gap:5px"><span style="font-size:20px;font-weight:700;font-family:monospace;color:#e6edf3">'+(t?fmt(t)+'°':'—')+'</span>'+(sp?'<span style="font-size:11px;color:#6b7280">/ '+fmt(sp,0)+'°C</span>':'')+'</div>'
         +(d!==null?'<div style="font-size:10px;color:'+col+';margin-top:2px">'+(d>=0?'+':'')+d.toFixed(1)+'°C vs consigne</div>':'');
       rg.append(c);
@@ -226,19 +216,18 @@ function renderDashboard() {
     div.append(mk('div','info','💡 Aucune pièce Tado — ajoutez-en dans l\'onglet <strong>Système</strong>.'));
   }
 
-  if (weather && weather.hourly) {
-    var now = new Date(), h = weather.hourly;
-    var fc = h.time.map(function(t,i){ return {time:t,temp:h.temperature_2m[i],cloud:h.cloud_cover[i]}; })
-      .filter(function(p){ var d=new Date(p.time); return d>=now && d<=new Date(now.getTime()+24*3600000); })
-      .filter(function(_,i){ return i%2===0; }).slice(0,8);
+  if (weather&&weather.hourly) {
+    var now=new Date(),h=weather.hourly;
+    var fc=h.time.map(function(t,i){return {time:t,temp:h.temperature_2m[i],cloud:h.cloud_cover[i]};})
+      .filter(function(p){var d=new Date(p.time);return d>=now&&d<=new Date(now.getTime()+24*3600000);})
+      .filter(function(_,i){return i%2===0;}).slice(0,8);
     if (fc.length) {
-      var fs = mk('div','section','<div class="stitle">Prévisions 24h</div>');
-      var bar = mk('div','fc-bar');
-      fc.forEach(function(p) {
-        var tv = tEauCalc(p.temp), off = p.temp >= cfg.functional.tBalance;
-        var col = p.temp<5?'#58a6ff':p.temp>15?'#3fb950':'#c9d1d9';
-        var cell = mk('div','fc-cell');
-        cell.innerHTML = '<div style="font-size:10px;color:#6b7280;margin-bottom:3px">'+p.time.slice(11,16)+'</div>'
+      var fs=mk('div','section','<div class="stitle">Prévisions 24h</div>');
+      var bar=mk('div','fc-bar');
+      fc.forEach(function(p){
+        var tv=tEauCalc(p.temp),off=p.temp>=cfg.functional.tBalance,col=p.temp<5?'#58a6ff':p.temp>15?'#3fb950':'#c9d1d9';
+        var cell=mk('div','fc-cell');
+        cell.innerHTML='<div style="font-size:10px;color:#6b7280;margin-bottom:3px">'+p.time.slice(11,16)+'</div>'
           +'<div style="font-size:14px;font-weight:700;font-family:monospace;color:'+col+'">'+p.temp.toFixed(0)+'°</div>'
           +'<div style="font-size:9px;color:'+(off?'#6b7280':'#f59e0b')+';margin-top:2px">'+(off?'off':tv.toFixed(0)+'°eau')+'</div>'
           +'<div style="font-size:9px;color:#4b5563;margin-top:1px">'+p.cloud+'%☁</div>';
@@ -248,212 +237,208 @@ function renderDashboard() {
     }
   }
   if (!cfg.system.haToken) div.append(mk('div','warn','⚠ Token HA non configuré — onglet Système.'));
-  if (lastUpd) { var ts=mk('div'); ts.style.cssText='margin-top:10px;font-size:10px;color:#4b5563;text-align:right'; ts.textContent='Mis à jour '+lastUpd.toLocaleTimeString('fr-FR'); div.append(ts); }
+  if (lastUpd){var ts=mk('div');ts.style.cssText='margin-top:10px;font-size:10px;color:#4b5563;text-align:right';ts.textContent='Mis à jour '+lastUpd.toLocaleTimeString('fr-FR');div.append(ts);}
 }
 
 // ── AI ─────────────────────────────────────────────────────────────────────────
 function renderAI() {
-  var div = document.getElementById('p-ai'); if (!div) return; div.innerHTML = '';
-  var apiOk = ANTHROPIC_API_KEY && ANTHROPIC_API_KEY.length > 20 && ANTHROPIC_API_KEY.indexOf('__ANTHROPIC') === -1;
-  var hdr = mk('div'); hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:14px';
-  hdr.innerHTML = '<div><div style="font-size:14px;font-weight:600;color:#e6edf3">Conseiller IA</div><div style="font-size:11px;color:#8b949e;margin-top:2px">Analyse basée sur l\'état actuel</div></div>';
-  var btn = mk('button','btn'); btn.textContent = '▶ Analyser'; btn.onclick = runAI; hdr.append(btn); div.append(hdr);
-  if (!apiOk) { div.append(mk('div','errbox','⚠ Clé API non injectée. Dans HA : Paramètres → Add-ons → PAC Manager → Configuration → saisir anthropic_api_key → Redémarrer.')); return; }
-  div.append(mk('div','ok','✓ Clé API active ('+ANTHROPIC_API_KEY.length+' caractères)'));
-  if (!aiResult) { div.append(mk('div','empty','<div style="font-size:28px;margin-bottom:10px">🤖</div><div>Cliquez sur Analyser.</div>')); return; }
-  if (aiResult.error) { div.append(mk('div','errbox', aiResult.error)); return; }
-  var PC = {'Excellent':'#3fb950','Bon':'#58a6ff','Moyen':'#d29922','À améliorer':'#f85149'};
-  var ac = PC[aiResult.performance] || '#6b7280';
-  var card = mk('div','ai-card'); card.style.borderLeft = '4px solid '+ac;
-  card.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="badge" style="background:'+ac+'22;color:'+ac+';border:1px solid '+ac+'44">'+(aiResult.performance||'')+'</span><span style="font-size:10px;color:#4b5563">'+(aiResult.ts?aiResult.ts.toLocaleTimeString('fr-FR'):'')+'</span></div><p style="margin:0;font-size:13px;line-height:1.65;color:#c9d1d9">'+(aiResult.analyse||'')+'</p>';
+  var div=document.getElementById('p-ai'); if(!div) return; div.innerHTML='';
+  var apiOk=GEMINI_API_KEY&&GEMINI_API_KEY.length>10&&GEMINI_API_KEY.indexOf('__GEMINI')===-1;
+  var hdr=mk('div'); hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px';
+  hdr.innerHTML='<div><div style="font-size:14px;font-weight:600;color:#e6edf3">Conseiller IA <span style="font-size:10px;color:#6b7280;font-weight:400">Gemini 1.5 Flash</span></div><div style="font-size:11px;color:#8b949e;margin-top:2px">Analyse basée sur l\'état actuel</div></div>';
+  var btn=mk('button','btn'); btn.textContent='▶ Analyser'; btn.onclick=runAI; hdr.append(btn); div.append(hdr);
+  if (!apiOk) {
+    div.append(mk('div','errbox','⚠ Clé API Gemini non configurée.<br><br>1. Va sur <strong>aistudio.google.com</strong> → Get API Key → Create API Key (gratuit)<br>2. Dans HA : Paramètres → Add-ons → PAC Manager → Configuration → colle la clé dans <strong>gemini_api_key</strong><br>3. Redémarre l\'add-on'));
+    return;
+  }
+  div.append(mk('div','ok','✓ Clé Gemini active ('+GEMINI_API_KEY.length+' caractères) — gratuit jusqu\'à 1500 req/jour'));
+  if (!aiResult){div.append(mk('div','empty','<div style="font-size:28px;margin-bottom:10px">🤖</div><div>Cliquez sur Analyser.</div>'));return;}
+  if (aiResult.error){div.append(mk('div','errbox',aiResult.error));return;}
+  var PC={'Excellent':'#3fb950','Bon':'#58a6ff','Moyen':'#d29922','À améliorer':'#f85149'};
+  var ac=PC[aiResult.performance]||'#6b7280';
+  var card=mk('div','ai-card'); card.style.borderLeft='4px solid '+ac;
+  card.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="badge" style="background:'+ac+'22;color:'+ac+';border:1px solid '+ac+'44">'+(aiResult.performance||'')+'</span><span style="font-size:10px;color:#4b5563">'+(aiResult.ts?aiResult.ts.toLocaleTimeString('fr-FR'):'')+'</span></div><p style="margin:0;font-size:13px;line-height:1.65;color:#c9d1d9">'+(aiResult.analyse||'')+'</p>';
   div.append(card);
   if (aiResult.tEauRecommandee) {
-    var tEauAct = cfg.entities.tEauDep && haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
-    var rec = mk('div','ai-rec');
-    rec.innerHTML = '<div class="lbl">T° eau recommandée</div><div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 8px"><span style="font-size:28px;font-weight:700;font-family:monospace;color:#3fb950">'+parseFloat(aiResult.tEauRecommandee).toFixed(1)+'°C</span>'+(tEauAct?'<span style="font-size:12px;color:#6b7280">actuel: '+fmt(tEauAct)+'°C</span>':'')+'</div><p style="margin:0;font-size:12px;color:#8b949e;line-height:1.55">'+(aiResult.justification||'')+'</p>';
+    var tEauAct=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
+    var rec=mk('div','ai-rec');
+    rec.innerHTML='<div class="lbl">T° eau recommandée</div><div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 8px"><span style="font-size:28px;font-weight:700;font-family:monospace;color:#3fb950">'+parseFloat(aiResult.tEauRecommandee).toFixed(1)+'°C</span>'+(tEauAct?'<span style="font-size:12px;color:#6b7280">actuel: '+fmt(tEauAct)+'°C</span>':'')+'</div><p style="margin:0;font-size:12px;color:#8b949e;line-height:1.55">'+(aiResult.justification||'')+'</p>';
     div.append(rec);
   }
-  if (aiResult.actions && aiResult.actions.length) {
-    var ac2 = mk('div','section','<div class="stitle">Actions recommandées</div>');
-    aiResult.actions.forEach(function(a){ var row=mk('div'); row.style.cssText='display:flex;gap:6px;margin-bottom:6px;font-size:12px;color:#c9d1d9;line-height:1.5'; row.innerHTML='<span style="color:#58a6ff;flex-shrink:0">→</span>'+a; ac2.append(row); });
+  if (aiResult.actions&&aiResult.actions.length) {
+    var ac2=mk('div','section','<div class="stitle">Actions recommandées</div>');
+    aiResult.actions.forEach(function(a){var row=mk('div');row.style.cssText='display:flex;gap:6px;margin-bottom:6px;font-size:12px;color:#c9d1d9;line-height:1.5';row.innerHTML='<span style="color:#58a6ff;flex-shrink:0">→</span>'+a;ac2.append(row);});
     div.append(ac2);
   }
-  if (aiResult.alertes && aiResult.alertes.length) {
-    var al = mk('div','section'); al.style.cssText='background:#1a1500;border-color:#d2992233';
-    aiResult.alertes.forEach(function(a){ al.append(mk('div',null,'<span style="font-size:12px;color:#d29922">⚠ '+a+'</span>')); });
+  if (aiResult.alertes&&aiResult.alertes.length) {
+    var al=mk('div','section');al.style.cssText='background:#1a1500;border-color:#d2992233';
+    aiResult.alertes.forEach(function(a){al.append(mk('div',null,'<span style="font-size:12px;color:#d29922">⚠ '+a+'</span>'));});
     div.append(al);
   }
 }
 
 function runAI() {
-  var apiOk = ANTHROPIC_API_KEY && ANTHROPIC_API_KEY.length > 20 && ANTHROPIC_API_KEY.indexOf('__ANTHROPIC') === -1;
-  if (!apiOk) { alert('Clé API non configurée.'); return; }
-  var btn = document.querySelector('#p-ai .btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⟳ Analyse…'; }
+  var apiOk=GEMINI_API_KEY&&GEMINI_API_KEY.length>10&&GEMINI_API_KEY.indexOf('__GEMINI')===-1;
+  if (!apiOk){alert('Clé API Gemini non configurée.');return;}
+  var btn=document.querySelector('#p-ai .btn');
+  if (btn){btn.disabled=true;btn.textContent='⟳ Analyse…';}
 
-  var tExt = cfg.entities.tExt && haData[cfg.entities.tExt] ? parseFloat(haData[cfg.entities.tExt].state) : (weather && weather.current_weather ? weather.current_weather.temperature : null);
-  var tEauRec = tExt !== null ? tEauCalc(tExt) : null;
-  var tEauAct = cfg.entities.tEauDep && haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
-  var cop = cfg.entities.copInst && haData[cfg.entities.copInst] ? parseFloat(haData[cfg.entities.copInst].state) : null;
-  var pw = cfg.entities.puissElec && haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state) : null;
+  var tExt=cfg.entities.tExt&&haData[cfg.entities.tExt]?parseFloat(haData[cfg.entities.tExt].state):(weather&&weather.current_weather?weather.current_weather.temperature:null);
+  var tEauRec=tExt!==null?tEauCalc(tExt):null;
+  var tEauAct=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
+  var cop=cfg.entities.copInst&&haData[cfg.entities.copInst]?parseFloat(haData[cfg.entities.copInst].state):null;
+  var pw=cfg.entities.puissElec&&haData[cfg.entities.puissElec]?parseFloat(haData[cfg.entities.puissElec].state):null;
 
-  var rCtx = cfg.rooms.map(function(r) {
-    var t = haData[r.entityTemp] ? haData[r.entityTemp].state : '?';
-    var sp = haData[r.entitySetpoint] ? (haData[r.entitySetpoint].attributes && haData[r.entitySetpoint].attributes.temperature ? haData[r.entitySetpoint].attributes.temperature : cfg.functional.consigneJour) : cfg.functional.consigneJour;
-    return '- '+r.name+': '+t+'°C (consigne '+sp+'°C)';
-  }).join('\n') || '(aucune pièce)';
+  var rCtx=cfg.rooms.map(function(r){
+    var t=haData[r.entityTemp]?haData[r.entityTemp].state:'?';
+    var sp=haData[r.entitySetpoint]?(haData[r.entitySetpoint].attributes&&haData[r.entitySetpoint].attributes.temperature?haData[r.entitySetpoint].attributes.temperature:cfg.functional.consigneJour):cfg.functional.consigneJour;
+    return '- '+r.name+': '+t+'C (consigne '+sp+'C)';
+  }).join('\n')||'(aucune piece)';
 
-  var now = new Date();
-  var fCtx = '(indisponible)';
-  if (weather && weather.hourly) {
-    var h = weather.hourly;
-    var fc = h.time.map(function(t,i){ return {time:t,temp:h.temperature_2m[i],cloud:h.cloud_cover[i]}; })
-      .filter(function(p){ var d=new Date(p.time); return d>=now && d<=new Date(now.getTime()+24*3600000); })
-      .filter(function(_,i){ return i%2===0; }).slice(0,8);
-    if (fc.length) fCtx = fc.map(function(p){ return '  '+p.time.slice(11,16)+': '+p.temp+'°C nuages '+p.cloud+'%'; }).join('\n');
+  var now=new Date();
+  var fCtx='(indisponible)';
+  if (weather&&weather.hourly) {
+    var h=weather.hourly;
+    var fc=h.time.map(function(t,i){return {time:t,temp:h.temperature_2m[i],cloud:h.cloud_cover[i]};})
+      .filter(function(p){var d=new Date(p.time);return d>=now&&d<=new Date(now.getTime()+24*3600000);})
+      .filter(function(_,i){return i%2===0;}).slice(0,8);
+    if (fc.length) fCtx=fc.map(function(p){return '  '+p.time.slice(11,16)+': '+p.temp+'C nuages '+p.cloud+'%';}).join('\n');
   }
 
-  var prompt = 'Tu es un expert en régulation PAC résidentielle.\n'
-    + 'ÉTAT (' + now.toLocaleString('fr-FR') + '):\n'
-    + '- T°ext: ' + (tExt !== null ? tExt+'°C' : 'inconnue') + '\n'
-    + '- T°eau actuelle: ' + (tEauAct !== null ? tEauAct+'°C' : 'inconnue') + '\n'
-    + '- T°eau calculée: ' + (tEauRec !== null ? tEauRec.toFixed(1)+'°C' : 'inconnue') + '\n'
-    + '- COP: ' + (cop !== null ? cop : 'inconnu') + '\n'
-    + '- Puissance: ' + (pw !== null ? Math.round(pw)+'W' : 'inconnue') + '\n'
-    + '- Mode: ' + (isNight() ? 'NUIT' : 'JOUR') + '\n'
-    + 'PIÈCES TADO:\n' + rCtx + '\n'
-    + 'MÉTÉO 24H:\n' + fCtx + '\n'
-    + 'CONFIG: T_eau=' + cfg.functional.loiEauA + '+' + cfg.functional.loiEauB + 'xT_ext | Équilibre ' + cfg.functional.tBalance + '°C | Consignes ' + cfg.functional.consigneJour + '°C jour / ' + cfg.functional.consigneNuit + '°C nuit\n\n'
-    + 'Réponds avec un objet JSON valide et rien d\'autre (sans markdown, sans backticks):\n'
-    + '{"analyse":"...","tEauRecommandee":35.5,"justification":"...","actions":["..."],"performance":"Bon","alertes":[]}';
+  var prompt='Tu es un expert en regulation PAC residentielle.\n'
+    +'ETAT ('+now.toLocaleString('fr-FR')+'):\n'
+    +'- Text: '+(tExt!==null?tExt+'C':'inconnue')+'\n'
+    +'- Teau actuelle: '+(tEauAct!==null?tEauAct+'C':'inconnue')+'\n'
+    +'- Teau calculee: '+(tEauRec!==null?tEauRec.toFixed(1)+'C':'inconnue')+'\n'
+    +'- COP: '+(cop!==null?cop:'inconnu')+'\n'
+    +'- Puissance: '+(pw!==null?Math.round(pw)+'W':'inconnue')+'\n'
+    +'- Mode: '+(isNight()?'NUIT':'JOUR')+'\n'
+    +'PIECES TADO:\n'+rCtx+'\n'
+    +'METEO 24H:\n'+fCtx+'\n'
+    +'CONFIG: Teau='+cfg.functional.loiEauA+'+'+cfg.functional.loiEauB+'xText | Equilibre '+cfg.functional.tBalance+'C | Consignes '+cfg.functional.consigneJour+'C jour / '+cfg.functional.consigneNuit+'C nuit\n\n'
+    +'Reponds avec un objet JSON valide et rien d\'autre (sans markdown, sans backticks, sans commentaires):\n'
+    +'{"analyse":"texte analyse","tEauRecommandee":35.5,"justification":"texte","actions":["action1","action2"],"performance":"Bon","alertes":[]}';
 
-  fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:prompt}]})
+  // API Gemini — gratuit jusqu'à 1500 req/jour
+  var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+GEMINI_API_KEY;
+
+  fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      contents:[{parts:[{text:prompt}]}],
+      generationConfig:{temperature:0.3,maxOutputTokens:1024}
+    })
   })
-  .then(function(r) {
-    if (!r.ok) return r.text().then(function(t){ throw new Error('API '+r.status+': '+t.slice(0,200)); });
+  .then(function(r){
+    if (!r.ok) return r.text().then(function(t){throw new Error('Gemini '+r.status+': '+t.slice(0,300));});
     return r.json();
   })
-  .then(function(data) {
-    var rawText = '';
-    if (data.content) {
-      for (var i=0; i<data.content.length; i++) {
-        if (data.content[i].type === 'text') { rawText = data.content[i].text; break; }
-      }
-    }
-    var s = rawText.indexOf('{'), e = rawText.lastIndexOf('}');
-    if (s === -1 || e === -1 || e <= s) throw new Error('Réponse JSON invalide: ' + rawText.slice(0,200));
-    aiResult = JSON.parse(rawText.slice(s, e+1));
-    aiResult.ts = new Date();
+  .then(function(data){
+    var rawText='';
+    try { rawText=data.candidates[0].content.parts[0].text; } catch(e){ throw new Error('Réponse Gemini inattendue: '+JSON.stringify(data).slice(0,200)); }
+    var s=rawText.indexOf('{'), e=rawText.lastIndexOf('}');
+    if (s===-1||e===-1||e<=s) throw new Error('JSON introuvable dans: '+rawText.slice(0,300));
+    aiResult=JSON.parse(rawText.slice(s,e+1));
+    aiResult.ts=new Date();
   })
-  .catch(function(e) { aiResult = {error: e.message, ts: new Date()}; })
-  .then(function() { renderAI(); });
+  .catch(function(e){aiResult={error:e.message,ts:new Date()};})
+  .then(function(){renderAI();});
 }
 
 // ── Functional ──────────────────────────────────────────────────────────────────
 function renderFunctional() {
-  var div = document.getElementById('p-functional'); if (!div) return; div.innerHTML = '';
-  var s1 = mk('div','section');
-  s1.innerHTML = '<div class="stitle">Loi d\'eau</div><div class="g3" style="margin-bottom:14px">'
-    +'<div><div class="lbl">T° eau à 0°C ext</div><input type="number" step="0.5" id="f-loiA" value="'+cfg.functional.loiEauA+'"></div>'
-    +'<div><div class="lbl">Pente (°C/°C)</div><input type="number" step="0.05" id="f-loiB" value="'+cfg.functional.loiEauB+'"></div>'
-    +'<div><div class="lbl">Point équilibre (°C)</div><input type="number" step="0.5" id="f-loiBal" value="'+cfg.functional.tBalance+'"></div>'
+  var div=document.getElementById('p-functional'); if(!div) return; div.innerHTML='';
+  var s1=mk('div','section');
+  s1.innerHTML='<div class="stitle">Loi d\'eau</div><div class="g3" style="margin-bottom:14px">'
+    +'<div><div class="lbl">T eau a 0C ext</div><input type="number" step="0.5" id="f-loiA" value="'+cfg.functional.loiEauA+'"></div>'
+    +'<div><div class="lbl">Pente (C/C)</div><input type="number" step="0.05" id="f-loiB" value="'+cfg.functional.loiEauB+'"></div>'
+    +'<div><div class="lbl">Point equilibre (C)</div><input type="number" step="0.5" id="f-loiBal" value="'+cfg.functional.tBalance+'"></div>'
     +'</div>';
-  var bar = mk('div','loi-bar');
-  [-10,-5,0,5,10,15,20].forEach(function(t) {
-    var v=tEauCalc(t), off=t>=cfg.functional.tBalance, col=v>45?'#f85149':v>35?'#f59e0b':'#3fb950';
-    var c=mk('div','loi-cell'); c.style.cssText='opacity:'+(off?0.4:1)+';border:1px solid '+(off?'#21262d':'#30363d');
+  var bar=mk('div','loi-bar');
+  [-10,-5,0,5,10,15,20].forEach(function(t){
+    var v=tEauCalc(t),off=t>=cfg.functional.tBalance,col=v>45?'#f85149':v>35?'#f59e0b':'#3fb950';
+    var c=mk('div','loi-cell');c.style.cssText='opacity:'+(off?0.4:1)+';border:1px solid '+(off?'#21262d':'#30363d');
     c.innerHTML='<div style="font-size:10px;color:#6b7280;margin-bottom:3px">'+t+'°ext</div><div style="font-size:15px;font-weight:700;font-family:monospace;color:'+(off?'#6b7280':col)+'">'+(off?'OFF':v.toFixed(0)+'°')+'</div>';
     bar.append(c);
   });
   s1.append(bar); div.append(s1);
-  [['f-loiA','loiEauA'],['f-loiB','loiEauB'],['f-loiBal','tBalance']].forEach(function(x) {
-    var el = document.getElementById(x[0]); if (!el) return;
-    el.addEventListener('change', function(e) { cfg.functional[x[1]]=parseFloat(e.target.value); save(); renderFunctional(); });
+  [['f-loiA','loiEauA'],['f-loiB','loiEauB'],['f-loiBal','tBalance']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.functional[x[1]]=parseFloat(e.target.value);save();renderFunctional();});
   });
-  var s2 = mk('div','section');
-  s2.innerHTML = '<div class="stitle">Consignes</div><div class="g3">'
-    +'<div><div class="lbl">Jour (°C)</div><input type="number" step="0.5" id="f-cJ" value="'+cfg.functional.consigneJour+'"></div>'
-    +'<div><div class="lbl">Nuit (°C)</div><input type="number" step="0.5" id="f-cN" value="'+cfg.functional.consigneNuit+'"></div>'
-    +'<div><div class="lbl">ECS (°C)</div><input type="number" step="1" id="f-cE" value="'+cfg.functional.consigneECS+'"></div>'
-    +'<div><div class="lbl">Début nuit</div><input type="time" id="f-hN" value="'+cfg.functional.heureNuit+'"></div>'
+  var s2=mk('div','section');
+  s2.innerHTML='<div class="stitle">Consignes</div><div class="g3">'
+    +'<div><div class="lbl">Jour (C)</div><input type="number" step="0.5" id="f-cJ" value="'+cfg.functional.consigneJour+'"></div>'
+    +'<div><div class="lbl">Nuit (C)</div><input type="number" step="0.5" id="f-cN" value="'+cfg.functional.consigneNuit+'"></div>'
+    +'<div><div class="lbl">ECS (C)</div><input type="number" step="1" id="f-cE" value="'+cfg.functional.consigneECS+'"></div>'
+    +'<div><div class="lbl">Debut nuit</div><input type="time" id="f-hN" value="'+cfg.functional.heureNuit+'"></div>'
     +'<div><div class="lbl">Fin nuit</div><input type="time" id="f-hJ" value="'+cfg.functional.heureJour+'"></div>'
-    +'<div><div class="lbl">Hystérésis ECS</div><input type="number" step="1" id="f-hE" value="'+cfg.functional.hystECS+'"></div>'
+    +'<div><div class="lbl">Hysteresis ECS</div><input type="number" step="1" id="f-hE" value="'+cfg.functional.hystECS+'"></div>'
     +'</div>';
   div.append(s2);
-  [['f-cJ','consigneJour'],['f-cN','consigneNuit'],['f-cE','consigneECS'],['f-hE','hystECS']].forEach(function(x) {
-    var el=document.getElementById(x[0]); if(!el) return;
-    el.addEventListener('change', function(e){ cfg.functional[x[1]]=parseFloat(e.target.value); save(); });
+  [['f-cJ','consigneJour'],['f-cN','consigneNuit'],['f-cE','consigneECS'],['f-hE','hystECS']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.functional[x[1]]=parseFloat(e.target.value);save();});
   });
-  [['f-hN','heureNuit'],['f-hJ','heureJour']].forEach(function(x) {
-    var el=document.getElementById(x[0]); if(!el) return;
-    el.addEventListener('change', function(e){ cfg.functional[x[1]]=e.target.value; save(); });
+  [['f-hN','heureNuit'],['f-hJ','heureJour']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.functional[x[1]]=e.target.value;save();});
   });
 }
 
 // ── System ──────────────────────────────────────────────────────────────────────
 function renderSystem() {
-  var div = document.getElementById('p-system'); if (!div) return; div.innerHTML = '';
-
-  var s1 = mk('div','section');
-  s1.innerHTML = '<div class="stitle">Connexion Home Assistant</div>'
+  var div=document.getElementById('p-system'); if(!div) return; div.innerHTML='';
+  var s1=mk('div','section');
+  s1.innerHTML='<div class="stitle">Connexion Home Assistant</div>'
     +'<div style="display:flex;flex-direction:column;gap:10px">'
     +'<div><div class="lbl">URL HA</div><input id="s-url" value="'+cfg.system.haUrl+'"></div>'
-    +'<div><div class="lbl">Token longue durée</div><input type="password" id="s-tok" value="'+cfg.system.haToken+'" placeholder="eyJ0eXAi..."></div>'
+    +'<div><div class="lbl">Token longue duree</div><input type="password" id="s-tok" value="'+cfg.system.haToken+'" placeholder="eyJ0eXAi..."></div>'
     +'<div class="g3">'
     +'<div><div class="lbl">Latitude</div><input type="number" step="0.01" id="s-lat" value="'+cfg.system.lat+'"></div>'
     +'<div><div class="lbl">Longitude</div><input type="number" step="0.01" id="s-lon" value="'+cfg.system.lon+'"></div>'
     +'<div><div class="lbl">Refresh (min)</div><input type="number" min="1" max="60" id="s-ref" value="'+cfg.system.refreshMin+'"></div>'
     +'</div></div>';
   div.append(s1);
-  [['s-url','haUrl'],['s-tok','haToken']].forEach(function(x) {
-    var el=document.getElementById(x[0]); if(!el) return;
-    el.addEventListener('change', function(e){ cfg.system[x[1]]=e.target.value; save(); });
+  [['s-url','haUrl'],['s-tok','haToken']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.system[x[1]]=e.target.value;save();});
   });
-  [['s-lat','lat'],['s-lon','lon'],['s-ref','refreshMin']].forEach(function(x) {
-    var el=document.getElementById(x[0]); if(!el) return;
-    el.addEventListener('change', function(e){ cfg.system[x[1]]=parseFloat(e.target.value); save(); });
+  [['s-lat','lat'],['s-lon','lon'],['s-ref','refreshMin']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.system[x[1]]=parseFloat(e.target.value);save();});
   });
 
-  var s2 = mk('div','section');
-  s2.innerHTML = '<div class="stitle">Entités PAC (CAN bus)</div>';
-  [['tExt','T° extérieure'],['tEauDep','T° eau départ'],['copInst','COP instantané'],['puissElec','Puissance élec (W)'],['puissTherm','Puissance therm (W)']].forEach(function(x) {
+  var s2=mk('div','section');
+  s2.innerHTML='<div class="stitle">Entites PAC (CAN bus)</div>';
+  [['tExt','T ext'],['tEauDep','T eau depart'],['copInst','COP instantane'],['puissElec','Puissance elec (W)'],['puissTherm','Puissance therm (W)']].forEach(function(x){
     var row=mk('div','frow');
     row.innerHTML='<div style="font-size:11px;color:#8b949e">'+x[1]+'</div><input id="s-e-'+x[0]+'" value="'+(cfg.entities[x[0]]||'')+'" placeholder="sensor.entity_id">';
     s2.append(row);
-    row.querySelector('input').addEventListener('change', function(e){ cfg.entities[x[0]]=e.target.value; save(); });
+    row.querySelector('input').addEventListener('change',function(e){cfg.entities[x[0]]=e.target.value;save();});
   });
   div.append(s2);
 
-  var s3 = mk('div','section');
-  s3.innerHTML = '<div class="stitle">Pièces Tado</div>';
-  var roomList = mk('div');
+  var s3=mk('div','section');
+  s3.innerHTML='<div class="stitle">Pieces Tado</div>';
+  var roomList=mk('div');
 
   function rebuildRooms() {
-    roomList.innerHTML = '';
-    if (cfg.rooms.length === 0) {
-      roomList.innerHTML = '<div style="font-size:11px;color:#6b7280;padding:4px 0 8px">Aucune pièce configurée.</div>';
+    roomList.innerHTML='';
+    if (cfg.rooms.length===0) {
+      roomList.innerHTML='<div style="font-size:11px;color:#6b7280;padding:4px 0 8px">Aucune piece configuree.</div>';
     } else {
-      cfg.rooms.forEach(function(r) {
-        var box = mk('div','troom');
-        box.innerHTML = '<div class="troom-hdr"><span class="troom-name">🏠 '+r.name+'</span><button class="btn-del">Supprimer</button></div>'
+      cfg.rooms.forEach(function(r){
+        var box=mk('div','troom');
+        box.innerHTML='<div class="troom-hdr"><span class="troom-name">'+r.name+'</span><button class="btn-del">Supprimer</button></div>'
           +'<div class="troom-fields">'
-          +'<div><div class="lbl">Capteur température</div><input class="inp-t" value="'+(r.entityTemp||'')+'" placeholder="sensor.tado_..."></div>'
-          +'<div><div class="lbl">Entité climate</div><input class="inp-s" value="'+(r.entitySetpoint||'')+'" placeholder="climate.tado_..."></div>'
+          +'<div><div class="lbl">Capteur temperature</div><input class="inp-t" value="'+(r.entityTemp||'')+'" placeholder="sensor.tado_..."></div>'
+          +'<div><div class="lbl">Entite climate</div><input class="inp-s" value="'+(r.entitySetpoint||'')+'" placeholder="climate.tado_..."></div>'
           +'</div>';
-        box.querySelector('.btn-del').addEventListener('click', function() {
-          cfg.rooms = cfg.rooms.filter(function(x){ return x.id !== r.id; });
-          save(); rebuildRooms();
-        });
-        box.querySelector('.inp-t').addEventListener('change', function(e){ r.entityTemp=e.target.value; save(); });
-        box.querySelector('.inp-s').addEventListener('change', function(e){ r.entitySetpoint=e.target.value; save(); });
+        box.querySelector('.btn-del').addEventListener('click',function(){cfg.rooms=cfg.rooms.filter(function(x){return x.id!==r.id;});save();rebuildRooms();});
+        box.querySelector('.inp-t').addEventListener('change',function(e){r.entityTemp=e.target.value;save();});
+        box.querySelector('.inp-s').addEventListener('change',function(e){r.entitySetpoint=e.target.value;save();});
         roomList.append(box);
       });
     }
@@ -461,38 +446,38 @@ function renderSystem() {
   rebuildRooms();
   s3.append(roomList);
 
-  var addbox = mk('div','addbox');
-  addbox.innerHTML = '<div style="font-size:11px;font-weight:600;color:#58a6ff;margin-bottom:10px">➕ Ajouter une pièce Tado</div>'
+  var addbox=mk('div','addbox');
+  addbox.innerHTML='<div style="font-size:11px;font-weight:600;color:#58a6ff;margin-bottom:10px">Ajouter une piece Tado</div>'
     +'<div class="g3" style="margin-bottom:10px">'
     +'<div><div class="lbl">Nom *</div><input id="nr-n" placeholder="Ex: Salon"></div>'
-    +'<div><div class="lbl">Capteur température</div><input id="nr-t" placeholder="sensor.tado_salon_temperature"></div>'
-    +'<div><div class="lbl">Entité climate</div><input id="nr-s" placeholder="climate.tado_salon"></div>'
+    +'<div><div class="lbl">Capteur temperature</div><input id="nr-t" placeholder="sensor.tado_salon_temperature"></div>'
+    +'<div><div class="lbl">Entite climate</div><input id="nr-s" placeholder="climate.tado_salon"></div>'
     +'</div>'
-    +'<button class="btn-add" id="btn-add">➕ Ajouter cette pièce</button>';
+    +'<button class="btn-add" id="btn-add">Ajouter cette piece</button>';
   s3.append(addbox);
   div.append(s3);
 
-  document.getElementById('btn-add').addEventListener('click', function() {
-    var name = (document.getElementById('nr-n').value || '').trim();
-    var temp = (document.getElementById('nr-t').value || '').trim();
-    var sp   = (document.getElementById('nr-s').value || '').trim();
-    if (!name) { document.getElementById('nr-n').style.borderColor='#f85149'; document.getElementById('nr-n').focus(); return; }
-    document.getElementById('nr-n').style.borderColor = '';
-    cfg.rooms.push({id: Date.now(), name: name, entityTemp: temp, entitySetpoint: sp});
+  document.getElementById('btn-add').addEventListener('click',function(){
+    var name=(document.getElementById('nr-n').value||'').trim();
+    var temp=(document.getElementById('nr-t').value||'').trim();
+    var sp=(document.getElementById('nr-s').value||'').trim();
+    if (!name){document.getElementById('nr-n').style.borderColor='#f85149';document.getElementById('nr-n').focus();return;}
+    document.getElementById('nr-n').style.borderColor='';
+    cfg.rooms.push({id:Date.now(),name:name,entityTemp:temp,entitySetpoint:sp});
     save();
-    document.getElementById('nr-n').value = '';
-    document.getElementById('nr-t').value = '';
-    document.getElementById('nr-s').value = '';
+    document.getElementById('nr-n').value='';
+    document.getElementById('nr-t').value='';
+    document.getElementById('nr-s').value='';
     rebuildRooms();
   });
 
-  div.append(mk('div','note','💡 <strong>Trouver les entity_id Tado</strong> : HA → Outils de développement → États → filtrer "tado". Copiez l\'entity_id exact dans les champs ci-dessus.'));
+  div.append(mk('div','note','Trouver les entity_id Tado : HA > Outils de developpement > Etats > filtrer "tado". Copiez l\'entity_id exact.'));
 }
 
 // ── Init ────────────────────────────────────────────────────────────────────────
 renderCurrent();
 appRefresh();
-setInterval(appRefresh, (cfg.system.refreshMin || 5) * 60000);
+setInterval(appRefresh,(cfg.system.refreshMin||5)*60000);
 </script>
 </body>
 </html>

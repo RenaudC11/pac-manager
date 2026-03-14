@@ -1,6 +1,6 @@
 name: "PAC Manager"
-description: "Gestion intelligente PAC Vitocal 150-A avec IA"
-version: "1.5.0"
+description: "Gestion intelligente PAC Vitocal 150-A avec IA (Gemini)"
+version: "1.6.0"
 slug: "pac_manager"
 init: false
 arch:
@@ -16,6 +16,6 @@ homeassistant_api: false
 hassio_api: false
 map: []
 options:
-  anthropic_api_key: ""
+  gemini_api_key: ""
 schema:
-  anthropic_api_key: str
+  gemini_api_key: str
