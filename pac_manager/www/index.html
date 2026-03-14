@@ -62,7 +62,7 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.4.0</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.5.0</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
@@ -273,160 +273,94 @@ const renderAI = () => {
   }
 };
 
+// ── Remplace la fonction runAI complète dans index.html ──────────────────────
 const runAI = async () => {
-  const apiOk=ANTHROPIC_API_KEY&&ANTHROPIC_API_KEY.length>20&&!ANTHROPIC_API_KEY.includes('__ANTHROPIC');
+  const apiOk = ANTHROPIC_API_KEY && ANTHROPIC_API_KEY.length > 20 && !ANTHROPIC_API_KEY.includes('__ANTHROPIC');
   if (!apiOk) { alert('Clé API non configurée.'); return; }
-  const btn=document.querySelector('#pane-ai .btn'); if(btn){btn.disabled=true;btn.textContent='⟳ Analyse…';}
-  const tExt=cfg.entities.tExt&&haData[cfg.entities.tExt]?parseFloat(haData[cfg.entities.tExt].state):weather?.current_weather?.temperature??null;
-  const tEauRec=tExt!==null?tEauCalc(tExt):null;
-  const tEauAct=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
-  const cop=cfg.entities.copInst&&haData[cfg.entities.copInst]?parseFloat(haData[cfg.entities.copInst].state):null;
-  const pw=cfg.entities.puissElec&&haData[cfg.entities.puissElec]?parseFloat(haData[cfg.entities.puissElec].state):null;
-  const rCtx=cfg.rooms.map(r=>`- ${r.name}: ${haData[r.entityTemp]?.state||'?'}°C (consigne ${haData[r.entitySetpoint]?.attributes?.temperature||cfg.functional.consigneJour}°C)`).join('\n')||'(aucune pièce)';
-  const now=new Date(),hh=weather?.hourly;
-  const fCtx=hh?hh.time.map((t,i)=>({time:t,temp:hh.temperature_2m[i],cloud:hh.cloud_cover[i]})).filter(p=>{const d=new Date(p.time);return d>=now&&d<=new Date(now.getTime()+24*3600000);}).filter((_,i)=>i%2===0).slice(0,8).map(p=>`  ${p.time.slice(11,16)}: ${p.temp}°C nuages ${p.cloud}%`).join('\n'):'(indisponible)';
+  const btn = document.querySelector('#pane-ai .btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⟳ Analyse…'; }
+
+  const tExt = cfg.entities.tExt && haData[cfg.entities.tExt]
+    ? parseFloat(haData[cfg.entities.tExt].state)
+    : weather?.current_weather?.temperature ?? null;
+  const tEauRec = tExt !== null ? tEauCalc(tExt) : null;
+  const tEauAct = cfg.entities.tEauDep && haData[cfg.entities.tEauDep]
+    ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
+  const cop = cfg.entities.copInst && haData[cfg.entities.copInst]
+    ? parseFloat(haData[cfg.entities.copInst].state) : null;
+  const pw = cfg.entities.puissElec && haData[cfg.entities.puissElec]
+    ? parseFloat(haData[cfg.entities.puissElec].state) : null;
+
+  const rCtx = cfg.rooms.map(r =>
+    `- ${r.name}: ${haData[r.entityTemp]?.state || '?'}°C (consigne ${haData[r.entitySetpoint]?.attributes?.temperature || cfg.functional.consigneJour}°C)`
+  ).join('\n') || '(aucune pièce)';
+
+  const now = new Date(), hh = weather?.hourly;
+  const fCtx = hh
+    ? hh.time.map((t, i) => ({ time: t, temp: hh.temperature_2m[i], cloud: hh.cloud_cover[i] }))
+        .filter(p => { const d = new Date(p.time); return d >= now && d <= new Date(now.getTime() + 24 * 3600000); })
+        .filter((_, i) => i % 2 === 0).slice(0, 8)
+        .map(p => `  ${p.time.slice(11, 16)}: ${p.temp}°C nuages ${p.cloud}%`).join('\n')
+    : '(indisponible)';
+
   try {
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`Expert PAC résidentielle. Analyse et recommande.
-ÉTAT (${now.toLocaleString('fr-FR')}): T°ext ${tExt}°C | T°eau act ${tEauAct}°C | T°eau calc ${tEauRec?.toFixed(1)}°C | COP ${cop} | Puiss ${pw}W | Mode ${isNight()?'NUIT':'JOUR'}
-PIÈCES:\n${rCtx}\nMÉTÉO:\n${fCtx}
-CONFIG: T_eau=${cfg.functional.loiEauA}+${cfg.functional.loiEauB}×T_ext | Équilibre ${cfg.functional.tBalance}°C
-Réponds UNIQUEMENT JSON: {"analyse":"...","tEauRecommandee":35.5,"justification":"...","actions":["..."],"performance":"Bon","alertes":[]}`}]})});
-    const d=await r.json(); const txt=d.content?.find(b=>b.type==='text')?.text||'';
-    aiResult={...JSON.parse(txt.replace(/```json\n?|```/g,'').trim()),ts:new Date()};
-  } catch(e) { aiResult={error:e.message,ts:new Date()}; }
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: `Tu es un expert en régulation PAC résidentielle.
+ÉTAT (${now.toLocaleString('fr-FR')}):
+- T°ext: ${tExt !== null ? tExt + '°C' : 'inconnue'}
+- T°eau actuelle: ${tEauAct !== null ? tEauAct + '°C' : 'inconnue'}
+- T°eau calculée: ${tEauRec !== null ? tEauRec.toFixed(1) + '°C' : 'inconnue'}
+- COP: ${cop !== null ? cop : 'inconnu'}
+- Puissance: ${pw !== null ? Math.round(pw) + 'W' : 'inconnue'}
+- Mode: ${isNight() ? 'NUIT' : 'JOUR'}
+PIÈCES TADO:
+${rCtx}
+MÉTÉO 24H:
+${fCtx}
+CONFIG: T_eau = ${cfg.functional.loiEauA} + ${cfg.functional.loiEauB} × T_ext | Équilibre ${cfg.functional.tBalance}°C | Consignes ${cfg.functional.consigneJour}°C jour / ${cfg.functional.consigneNuit}°C nuit
+
+Réponds avec un objet JSON valide et rien d'autre (pas de markdown, pas de backticks) :
+{"analyse":"texte d analyse","tEauRecommandee":35.5,"justification":"texte","actions":["action 1","action 2"],"performance":"Bon","alertes":[]}`
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`API ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const rawText = data.content?.find(b => b.type === 'text')?.text || '';
+
+    // Parser robuste : cherche le premier { et le dernier }
+    const jsonStart = rawText.indexOf('{');
+    const jsonEnd = rawText.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+      throw new Error(`Réponse inattendue: ${rawText.slice(0, 300)}`);
+    }
+    const jsonStr = rawText.slice(jsonStart, jsonEnd + 1);
+    aiResult = { ...JSON.parse(jsonStr), ts: new Date() };
+
+  } catch(e) {
+    aiResult = { error: e.message, ts: new Date() };
+  }
+
   renderAI();
 };
 
-// ── Functional ──────────────────────────────────────────────────────────────────
-const renderFunctional = () => {
-  const div=document.getElementById('pane-functional'); if(!div) return; div.innerHTML='';
-  const s1=mk('div','section');
-  s1.innerHTML=`<div class="section-title">Loi d'eau</div>
-    <div class="grid-3" style="margin-bottom:14px">
-      <div><div class="lbl">T° eau à 0°C ext</div><input type="number" step="0.5" id="f-loiA" value="${cfg.functional.loiEauA}"></div>
-      <div><div class="lbl">Pente (°C/°C)</div><input type="number" step="0.05" id="f-loiB" value="${cfg.functional.loiEauB}"></div>
-      <div><div class="lbl">Point équilibre (°C)</div><input type="number" step="0.5" id="f-loiBal" value="${cfg.functional.tBalance}"></div>
-    </div>`;
-  const bar=mk('div','loi-bar');
-  [-10,-5,0,5,10,15,20].forEach(t=>{const v=tEauCalc(t),off=t>=cfg.functional.tBalance,col=v>45?'#f85149':v>35?'#f59e0b':'#3fb950',c=mk('div','loi-cell');c.style.cssText=`opacity:${off?0.4:1};border:1px solid ${off?'#21262d':'#30363d'}`;c.innerHTML=`<div style="font-size:10px;color:#6b7280;margin-bottom:3px">${t}°ext</div><div style="font-size:15px;font-weight:700;font-family:monospace;color:${off?'#6b7280':col}">${off?'OFF':v.toFixed(0)+'°'}</div>`;bar.append(c);});
-  s1.append(bar); div.append(s1);
-  [['f-loiA','loiEauA'],['f-loiB','loiEauB'],['f-loiBal','tBalance']].forEach(([id,k])=>document.getElementById(id)?.addEventListener('change',e=>{cfg.functional[k]=parseFloat(e.target.value);save();renderFunctional();}));
-  const s2=mk('div','section');
-  s2.innerHTML=`<div class="section-title">Consignes</div>
-    <div class="grid-3">
-      <div><div class="lbl">Jour (°C)</div><input type="number" step="0.5" id="f-cJour" value="${cfg.functional.consigneJour}"></div>
-      <div><div class="lbl">Nuit (°C)</div><input type="number" step="0.5" id="f-cNuit" value="${cfg.functional.consigneNuit}"></div>
-      <div><div class="lbl">ECS (°C)</div><input type="number" step="1" id="f-cECS" value="${cfg.functional.consigneECS}"></div>
-      <div><div class="lbl">Début nuit</div><input type="time" id="f-hNuit" value="${cfg.functional.heureNuit}"></div>
-      <div><div class="lbl">Fin nuit</div><input type="time" id="f-hJour" value="${cfg.functional.heureJour}"></div>
-      <div><div class="lbl">Hystérésis ECS</div><input type="number" step="1" id="f-hECS" value="${cfg.functional.hystECS}"></div>
-    </div>`;
-  div.append(s2);
-  [['f-cJour','consigneJour'],['f-cNuit','consigneNuit'],['f-cECS','consigneECS'],['f-hECS','hystECS']].forEach(([id,k])=>document.getElementById(id)?.addEventListener('change',e=>{cfg.functional[k]=parseFloat(e.target.value);save();}));
-  [['f-hNuit','heureNuit'],['f-hJour','heureJour']].forEach(([id,k])=>document.getElementById(id)?.addEventListener('change',e=>{cfg.functional[k]=e.target.value;save();}));
-};
-
-// ── System ──────────────────────────────────────────────────────────────────────
-const renderSystem = () => {
-  const div=document.getElementById('pane-system'); if(!div) return; div.innerHTML='';
-
-  // HA
-  const s1=mk('div','section');
-  s1.innerHTML=`<div class="section-title">Connexion Home Assistant</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div><div class="lbl">URL HA</div><input id="s-haUrl" value="${cfg.system.haUrl}"></div>
-      <div><div class="lbl">Token longue durée</div><input type="password" id="s-haToken" value="${cfg.system.haToken}" placeholder="eyJ0eXAi..."></div>
-      <div class="grid-3">
-        <div><div class="lbl">Latitude</div><input type="number" step="0.01" id="s-lat" value="${cfg.system.lat}"></div>
-        <div><div class="lbl">Longitude</div><input type="number" step="0.01" id="s-lon" value="${cfg.system.lon}"></div>
-        <div><div class="lbl">Refresh (min)</div><input type="number" min="1" max="60" id="s-refMin" value="${cfg.system.refreshMin}"></div>
-      </div>
-    </div>`;
-  div.append(s1);
-  [['s-haUrl','haUrl'],['s-haToken','haToken']].forEach(([id,k])=>document.getElementById(id)?.addEventListener('change',e=>{cfg.system[k]=e.target.value;save();}));
-  [['s-lat','lat'],['s-lon','lon'],['s-refMin','refreshMin']].forEach(([id,k])=>document.getElementById(id)?.addEventListener('change',e=>{cfg.system[k]=parseFloat(e.target.value);save();}));
-
-  // Entités PAC
-  const s2=mk('div','section');
-  s2.innerHTML='<div class="section-title">Entités PAC (CAN bus)</div>';
-  [['tExt','T° extérieure'],['tEauDep','T° eau départ'],['copInst','COP instantané'],['puissElec','Puissance élec (W)'],['puissTherm','Puissance therm (W)']].forEach(([k,l])=>{
-    const row=mk('div','field-row');
-    row.innerHTML=`<div style="font-size:11px;color:#8b949e">${l}</div><input id="s-ent-${k}" value="${cfg.entities[k]||''}" placeholder="sensor.entity_id">`;
-    s2.append(row);
-    row.querySelector('input').addEventListener('change',e=>{cfg.entities[k]=e.target.value;save();});
-  });
-  div.append(s2);
-
-  // ── Tado rooms ────────────────────────────────────────────────────────────────
-  const s3=mk('div','section');
-  s3.innerHTML='<div class="section-title">Pièces Tado</div>';
-
-  // Liste des pièces existantes
-  const roomList=mk('div','room-list');
-
-  const rebuildRoomList=()=>{
-    roomList.innerHTML='';
-    if(cfg.rooms.length===0){
-      roomList.innerHTML='<div style="font-size:11px;color:#6b7280;padding:8px 0 4px">Aucune pièce configurée.</div>';
-    } else {
-      cfg.rooms.forEach(r=>{
-        const box=mk('div','tado-room');
-        box.innerHTML=`
-          <div class="tado-room-header">
-            <span class="tado-room-name">🏠 ${r.name}</span>
-            <button class="btn-del" data-id="${r.id}">Supprimer</button>
-          </div>
-          <div class="tado-room-fields">
-            <div><div class="lbl">Capteur température</div><input class="inp-temp" value="${r.entityTemp||''}" placeholder="sensor.tado_..."></div>
-            <div><div class="lbl">Entité climate</div><input class="inp-sp" value="${r.entitySetpoint||''}" placeholder="climate.tado_..."></div>
-          </div>`;
-        box.querySelector('.btn-del').addEventListener('click',()=>{cfg.rooms=cfg.rooms.filter(x=>x.id!==r.id);save();rebuildRoomList();});
-        box.querySelector('.inp-temp').addEventListener('change',e=>{r.entityTemp=e.target.value;save();});
-        box.querySelector('.inp-sp').addEventListener('change',e=>{r.entitySetpoint=e.target.value;save();});
-        roomList.append(box);
-      });
-    }
-  };
-  rebuildRoomList();
-  s3.append(roomList);
-
-  // Formulaire d'ajout — TOUJOURS visible
-  const addBox=mk('div','add-room-box');
-  addBox.innerHTML=`
-    <div style="font-size:11px;font-weight:600;color:#58a6ff;margin-bottom:10px">➕ Ajouter une pièce Tado</div>
-    <div class="grid-3" style="margin-bottom:10px">
-      <div>
-        <div class="lbl">Nom de la pièce *</div>
-        <input id="nr-name" placeholder="Ex: Salon, Chambre 1...">
-      </div>
-      <div>
-        <div class="lbl">Capteur température</div>
-        <input id="nr-temp" placeholder="sensor.tado_salon_temperature">
-      </div>
-      <div>
-        <div class="lbl">Entité climate (consigne)</div>
-        <input id="nr-sp" placeholder="climate.tado_salon">
-      </div>
-    </div>
-    <button class="btn-add" id="btn-add-room">➕ Ajouter cette pièce</button>`;
-  s3.append(addBox);
-  div.append(s3);
-
-  document.getElementById('btn-add-room').addEventListener('click',()=>{
-    const name=(document.getElementById('nr-name').value||'').trim();
-    const temp=(document.getElementById('nr-temp').value||'').trim();
-    const sp=(document.getElementById('nr-sp').value||'').trim();
-    if(!name){document.getElementById('nr-name').focus();document.getElementById('nr-name').style.borderColor='#f85149';return;}
-    document.getElementById('nr-name').style.borderColor='';
-    cfg.rooms.push({id:Date.now(),name,entityTemp:temp,entitySetpoint:sp});
-    save();
-    document.getElementById('nr-name').value='';
-    document.getElementById('nr-temp').value='';
-    document.getElementById('nr-sp').value='';
-    rebuildRoomList();
-  });
-
-  div.append(mk('div','note','💡 <strong>Trouver les entity_id Tado :</strong> dans HA → Outils de développement → États → filtrer "tado". Utilisez les colonnes "entity_id" pour le capteur et l\'entité climate.'));
 };
 
 // ── Init ─────────────────────────────────────────────────────────────────────────
