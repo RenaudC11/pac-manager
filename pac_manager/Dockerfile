@@ -5,8 +5,7 @@ RUN apk add --no-cache nginx python3
 
 COPY www/ /var/www/html/
 COPY nginx.conf /etc/nginx/nginx.conf
-COPY run.sh /run.sh
+COPY run.sh /etc/services.d/pac/run
 
-RUN chmod +x /run.sh
-
-CMD ["/run.sh"]
+RUN chmod a+x /etc/services.d/pac/run && \
+    mkdir -p /etc/services.d/pac
