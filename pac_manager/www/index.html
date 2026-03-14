@@ -320,7 +320,7 @@ function runAI() {
     +'{"analyse":"texte analyse","tEauRecommandee":35.5,"justification":"texte","actions":["action1","action2"],"performance":"Bon","alertes":[]}';
 
   // API Gemini — gratuit jusqu'à 1500 req/jour
-  var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+GEMINI_API_KEY;
+  var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+GEMINI_API_KEY;
 
   fetch(url, {
     method:'POST',
