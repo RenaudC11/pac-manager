@@ -320,6 +320,8 @@ function runAI() {
     + '- temperature_eau_depart_calculee_par_loi_eau: ' + (teau_calculee?teau_calculee.toFixed(1):null) + ' degres C\n'
     + '- COP_actuel: ' + cop_actuel + '\n'
     + '- puissance_electrique_watts: ' + puissance_w + '\n'
+    + '- etat_pac: ' + (puissance_w===null?'inconnu':puissance_w<10?'ARRETEE (puissance < 10W)':'EN MARCHE (puissance '+Math.round(puissance_w)+'W)') + '\n'
+    + '- cop_valide: ' + (cop_actuel&&!isNaN(cop_actuel)&&cop_actuel>0?'oui (COP='+cop_actuel+')':'non (PAC probablement arretee)') + '\n'
     + '- mode: ' + (isNight()?'NUIT':'JOUR') + '\n'
     + '- pieces_tado: ' + pieces_ctx + '\n'
     + '- meteo_prochaines_12h: ' + meteo_12h + '\n\n'
