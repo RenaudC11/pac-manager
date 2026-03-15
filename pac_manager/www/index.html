@@ -345,7 +345,34 @@ fetch(url,{
     try { rawText=data.candidates[0].content.parts[0].text; }
     catch(e){ throw new Error('Reponse inattendue: '+JSON.stringify(data).slice(0,200)); }
     var clean=rawText.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
-    aiResult=JSON.parse(clean);
+    // Réparer le JSON tronqué
+    function repairJSON(s) {
+      var result = s;
+      var openBraces = 0, openBrackets = 0, inString = false, escape = false;
+      for (var i=0; i<result.length; i++) {
+        var c = result[i];
+        if (escape) { escape=false; continue; }
+        if (c==='\\' && inString) { escape=true; continue; }
+        if (c==='"') { inString=!inString; continue; }
+        if (!inString) {
+          if (c==='{') openBraces++;
+          else if (c==='}') openBraces--;
+          else if (c==='[') openBrackets++;
+          else if (c===']') openBrackets--;
+        }
+      }
+      // Fermer la chaîne ouverte
+      if (inString) result += '"';
+      // Fermer les tableaux ouverts
+      while (openBrackets > 0) { result += ']'; openBrackets--; }
+      // Fermer les objets ouverts
+      while (openBraces > 0) { result += '}'; openBraces--; }
+      return result;
+    }
+    var s=clean.indexOf('{');
+    if (s===-1) throw new Error('Pas de JSON dans la reponse: '+clean.slice(0,100));
+    var repaired = repairJSON(clean.slice(s));
+    aiResult=JSON.parse(repaired);
     aiResult.ts=new Date();
   })
   
