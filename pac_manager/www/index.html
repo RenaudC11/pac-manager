@@ -305,21 +305,15 @@ function runAI() {
     if (fc.length) fCtx=fc.map(function(p){return '  '+p.time.slice(11,16)+': '+p.temp+'C nuages '+p.cloud+'%';}).join('\n');
   }
 
-  var prompt='Tu es un expert en regulation PAC residentielle.\n'
-    +'ETAT ('+now.toLocaleString('fr-FR')+'):\n'
-    +'- Text: '+(tExt!==null?tExt+'C':'inconnue')+'\n'
-    +'- Teau actuelle: '+(tEauAct!==null?tEauAct+'C':'inconnue')+'\n'
-    +'- Teau calculee: '+(tEauRec!==null?tEauRec.toFixed(1)+'C':'inconnue')+'\n'
-    +'- COP: '+(cop!==null?cop:'inconnu')+'\n'
-    +'- Puissance: '+(pw!==null?Math.round(pw)+'W':'inconnue')+'\n'
-    +'- Mode: '+(isNight()?'NUIT':'JOUR')+'\n'
-    +'PIECES TADO:\n'+rCtx+'\n'
-    +'METEO 24H:\n'+fCtx+'\n'
-    +'CONFIG: Teau='+cfg.functional.loiEauA+'+'+cfg.functional.loiEauB+'xText | Equilibre '+cfg.functional.tBalance+'C | Consignes '+cfg.functional.consigneJour+'C jour / '+cfg.functional.consigneNuit+'C nuit\n\n'
-    +'IMPORTANT: Reponds UNIQUEMENT avec un objet JSON, sans texte avant ou apres, sans markdown.\n'
-    +'Sois concis (max 1 phrase par champ texte).\n'
-    +'{"analyse":"...","tEauRecommandee":35.5,"justification":"...","actions":["..."],"performance":"Bon","alertes":[]}';
-
+  var prompt='Expert PAC. Reponds UNIQUEMENT en JSON valide, sans markdown, sans texte avant ou apres.\n'
+  +'Chaque champ texte: maximum 15 mots.\n\n'
+  +'Donnees: Text='+tExt+'C, Teau_act='+tEauAct+'C, Teau_calc='+(tEauRec?tEauRec.toFixed(1):null)+'C'
+  +', COP='+cop+', Puiss='+pw+'W, Mode='+(isNight()?'NUIT':'JOUR')+'\n'
+  +'Pieces: '+rCtx.replace(/\n/g,' | ')+'\n'
+  +'Meteo: '+fCtx.replace(/\n/g,' | ')+'\n\n'
+  +'JSON attendu (respecte exactement cette structure):\n'
+  +'{"analyse":"max 15 mots","tEauRecommandee":35.5,"justification":"max 15 mots","actions":["action courte"],"performance":"Bon","alertes":[]}';
+  
   // API Gemini — gratuit jusqu'à 1500 req/jour
   var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+GEMINI_API_KEY;
 
@@ -328,7 +322,7 @@ function runAI() {
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       contents:[{parts:[{text:prompt}]}],
-      generationConfig:{temperature:0,maxOutputTokens:8192}
+      generationConfig:{temperature:0, maxOutputTokens:512, topP:0.1}
     })
   })
   .then(function(r){
