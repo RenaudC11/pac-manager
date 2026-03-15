@@ -316,8 +316,9 @@ function runAI() {
     +'PIECES TADO:\n'+rCtx+'\n'
     +'METEO 24H:\n'+fCtx+'\n'
     +'CONFIG: Teau='+cfg.functional.loiEauA+'+'+cfg.functional.loiEauB+'xText | Equilibre '+cfg.functional.tBalance+'C | Consignes '+cfg.functional.consigneJour+'C jour / '+cfg.functional.consigneNuit+'C nuit\n\n'
-    +'Reponds avec un objet JSON valide et rien d\'autre (sans markdown, sans backticks, sans commentaires):\n'
-    +'{"analyse":"texte analyse","tEauRecommandee":35.5,"justification":"texte","actions":["action1","action2"],"performance":"Bon","alertes":[]}';
+    +'IMPORTANT: Reponds UNIQUEMENT avec un objet JSON, sans texte avant ou apres, sans markdown.\n'
+    +'Sois concis (max 2 phrases par champ texte).\n'
+    +'{"analyse":"...","tEauRecommandee":35.5,"justification":"...","actions":["..."],"performance":"Bon","alertes":[]}';
 
   // API Gemini — gratuit jusqu'à 1500 req/jour
   var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+GEMINI_API_KEY;
