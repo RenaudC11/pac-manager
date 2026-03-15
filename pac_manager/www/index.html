@@ -315,34 +315,40 @@ function runAI() {
   +'{"analyse":"max 15 mots","tEauRecommandee":35.5,"justification":"max 15 mots","actions":["action courte"],"performance":"Bon","alertes":[]}';
   
   // API Gemini — gratuit jusqu'à 1500 req/jour
-  var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+GEMINI_API_KEY;
+var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key='+GEMINI_API_KEY;
 
-  fetch(url, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      contents:[{parts:[{text:prompt}]}],
-      generationConfig:{temperature:0, maxOutputTokens:512, topP:0.1}
-    })
+fetch(url, {
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({
+    contents:[{parts:[{text:prompt}]}],
+    generationConfig:{
+      temperature:0,
+      maxOutputTokens:1024,
+      responseMimeType:'application/json',
+      responseSchema:{
+        type:'object',
+        properties:{
+          analyse:{type:'string'},
+          tEauRecommandee:{type:'number'},
+          justification:{type:'string'},
+          actions:{type:'array',items:{type:'string'}},
+          performance:{type:'string',enum:['Excellent','Bon','Moyen','A ameliorer']},
+          alertes:{type:'array',items:{type:'string'}}
+        },
+        required:['analyse','tEauRecommandee','justification','actions','performance','alertes']
+      }
+    }
   })
-  .then(function(r){
-    if (!r.ok) return r.text().then(function(t){throw new Error('Gemini '+r.status+': '+t.slice(0,300));});
-    return r.json();
-  })
+})
   .then(function(data){
     var rawText='';
-    try { rawText=data.candidates[0].content.parts[0].text; } catch(e){ throw new Error('Réponse Gemini inattendue: '+JSON.stringify(data).slice(0,200)); }
-    
-    // Nettoyer les backticks markdown
-    var cleaned = rawText.replace(/```json/g,'').replace(/```/g,'').trim();
-    var s = cleaned.indexOf('{');
-    var e = cleaned.lastIndexOf('}');
-    if (s === -1 || e === -1 || e <= s) {
-      throw new Error('JSON incomplet (tronque?) : '+cleaned.slice(0,200));
-    }
-    aiResult = JSON.parse(cleaned.slice(s, e+1));
+    try { rawText=data.candidates[0].content.parts[0].text; } 
+    catch(e){ throw new Error('Reponse Gemini inattendue: '+JSON.stringify(data).slice(0,200)); }
+    aiResult=JSON.parse(rawText);
     aiResult.ts=new Date();
   })
+  
   .catch(function(e){aiResult={error:e.message,ts:new Date()};})
   .then(function(){renderAI();});
 }
