@@ -254,8 +254,7 @@ function renderAI() {
   var card=mk('div','ai-card'); card.style.borderLeft='4px solid '+ac;
   card.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
     +'<span class="badge" style="background:'+ac+'22;color:'+ac+';border:1px solid '+ac+'44">'+(aiResult.p||'')+'</span>'
-    +'<span style="font-size:10px;color:#4b5563">'+(aiResult.ts?aiResult.ts.toLocaleTimeString('fr-FR'):'')+'</span>'
-    +'</div>';
+    +'<span style="font-size:10px;color:#4b5563">'+(aiResult.analyse?'<p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#c9d1d9">'+aiResult.analyse+'</p>':'');
   div.append(card);
   if (aiResult.t) {
     var tEauAct=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
@@ -322,7 +321,7 @@ function runAI() {
     +'Reponds avec exactement ce JSON (valeurs courtes, max 8 mots par string):\n'
     +'{"t":NOMBRE,"p":"Excellent|Bon|Moyen|A ameliorer","a":["action1","action2"],"al":[]}';
 
-  var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key='+GEMINI_API_KEY;
+  var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key='+GEMINI_API_KEY;
 
   fetch(url,{
     method:'POST',
@@ -339,10 +338,11 @@ function runAI() {
           properties:{
             t:{type:'NUMBER'},
             p:{type:'STRING'},
+            analyse:{type:'STRING'},
             a:{type:'ARRAY',items:{type:'STRING'}},
             al:{type:'ARRAY',items:{type:'STRING'}}
           },
-          required:['t','p','a','al']
+          required:['t','p','analyse','a','al']
         }
       }
     })
