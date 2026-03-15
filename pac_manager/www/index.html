@@ -257,7 +257,7 @@ function renderAI() {
   var PC={'Excellent':'#3fb950','Bon':'#58a6ff','Moyen':'#d29922','À améliorer':'#f85149'};
   var ac=PC[aiResult.performance]||'#6b7280';
   var card=mk('div','ai-card'); card.style.borderLeft='4px solid '+ac;
-  card.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="badge" style="background:'+ac+'22;color:'+ac+';border:1px solid '+ac+'44">'+(aiResult.performance||'')+'</span><span style="font-size:10px;color:#4b5563">'+(aiResult.ts?aiResult.ts.toLocaleTimeString('fr-FR'):'')+'</span></div><p style="margin:0;font-size:13px;line-height:1.65;color:#c9d1d9">'+(aiResult.analyse||'')+'</p>';
+  card.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="badge" style="background:'+ac+'22;color:'+ac+';border:1px solid '+ac+'44">'+(aiResult.performance||'')+'</span><span style="font-size:10px;color:#4b5563">'+(aiResult.ts?aiResult.ts.toLocaleTimeString('fr-FR'):'')+'</span></div><p style="margin:0;font-size:13px;line-height:1.65;color:#c9d1d9">'+(aiResult.statut||'')+'</p>';
   div.append(card);
   if (aiResult.tEauRecommandee) {
     var tEauAct=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
@@ -305,14 +305,12 @@ function runAI() {
     if (fc.length) fCtx=fc.map(function(p){return '  '+p.time.slice(11,16)+': '+p.temp+'C nuages '+p.cloud+'%';}).join('\n');
   }
 
-  var prompt='Expert PAC. Reponds UNIQUEMENT en JSON valide, sans markdown, sans texte avant ou apres.\n'
-  +'Chaque champ texte: maximum 15 mots.\n\n'
-  +'Donnees: Text='+tExt+'C, Teau_act='+tEauAct+'C, Teau_calc='+(tEauRec?tEauRec.toFixed(1):null)+'C'
-  +', COP='+cop+', Puiss='+pw+'W, Mode='+(isNight()?'NUIT':'JOUR')+'\n'
+  var prompt='Expert PAC. Reponds en JSON uniquement.\n'
+  +'Text='+tExt+'C Teau_act='+tEauAct+'C Teau_calc='+(tEauRec?tEauRec.toFixed(1):null)+'C'
+  +' COP='+cop+' Puiss='+pw+'W Mode='+(isNight()?'NUIT':'JOUR')+'\n'
   +'Pieces: '+rCtx.replace(/\n/g,' | ')+'\n'
-  +'Meteo: '+fCtx.replace(/\n/g,' | ')+'\n\n'
-  +'JSON attendu (respecte exactement cette structure):\n'
-  +'{"analyse":"max 15 mots","tEauRecommandee":35.5,"justification":"max 15 mots","actions":["action courte"],"performance":"Bon","alertes":[]}';
+  +'Meteo: '+fCtx.replace(/\n/g,' | ')+'\n'
+  +'statut: 1 phrase max. ecart: difference Teau_act vs Teau_calc en mots. actions: max 3 items courts.';
   
   // API Gemini — gratuit jusqu'à 1500 req/jour
 var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key='+GEMINI_API_KEY;
@@ -329,14 +327,14 @@ fetch(url,{
       responseSchema:{
         type:'OBJECT',
         properties:{
-          analyse:{type:'STRING'},
+          statut:{type:'STRING'},
           tEauRecommandee:{type:'NUMBER'},
-          justification:{type:'STRING'},
+          ecart:{type:'STRING'},
           actions:{type:'ARRAY',items:{type:'STRING'}},
           performance:{type:'STRING'},
           alertes:{type:'ARRAY',items:{type:'STRING'}}
         },
-        required:['analyse','tEauRecommandee','justification','actions','performance','alertes']
+        required:['statut','tEauRecommandee','ecart','actions','performance','alertes']
       }
     }
   })
