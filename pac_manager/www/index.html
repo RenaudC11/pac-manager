@@ -313,28 +313,48 @@ function runAI() {
   }
 
   // Prompt explicite avec noms de variables non ambigus
-  var prompt = 'Tu es expert en pompes a chaleur residentielles. Reponds en JSON uniquement.\n\n'
-    + 'DONNEES ACTUELLES:\n'
-    + '- temperature_exterieure: ' + temp_ext + ' degres C\n'
-    + '- temperature_eau_depart_actuelle: ' + teau_actuelle + ' degres C\n'
-    + '- temperature_eau_depart_calculee_par_loi_eau: ' + (teau_calculee?teau_calculee.toFixed(1):null) + ' degres C\n'
-    + '- COP_actuel: ' + cop_actuel + '\n'
-    + '- puissance_electrique_watts: ' + puissance_w + '\n'
-    + '- etat_pac: ' + (puissance_w===null?'inconnu':puissance_w<10?'ARRETEE (puissance < 10W)':'EN MARCHE (puissance '+Math.round(puissance_w)+'W)') + '\n'
-    + '- cop_valide: ' + (cop_actuel&&!isNaN(cop_actuel)&&cop_actuel>0?'oui (COP='+cop_actuel+')':'non (PAC probablement arretee)') + '\n'
-    + '- mode: ' + (isNight()?'NUIT':'JOUR') + '\n'
-    + '- pieces_tado: ' + pieces_ctx + '\n'
-    + '- meteo_prochaines_12h: ' + meteo_12h + '\n\n'
-    + 'CONFIGURATION LOI EAU:\n'
-    + '- formule: temperature_eau = ' + cfg.functional.loiEauA + ' + (' + cfg.functional.loiEauB + ' x temperature_exterieure)\n'
-    + '- point_equilibre: ' + cfg.functional.tBalance + ' degres C (PAC arretee au-dessus)\n'
-    + '- consigne_jour: ' + cfg.functional.consigneJour + ' degres C\n'
-    + '- consigne_nuit: ' + cfg.functional.consigneNuit + ' degres C\n\n'
-    + 'IMPORTANT: Le champ "teau_recommandee" est la temperature de l\'eau de chauffage (circuit hydraulique), PAS la temperature exterieure. '
-    + 'Elle doit etre entre 25 et 55 degres C. '
-    + 'Elle est calculee selon la loi d\'eau et l\'etat des pieces.\n\n'
-    + 'Reponds avec ce JSON (une seule phrase max par champ texte):\n'
-    + '{"performance":"Bon","teau_recommandee":35.0,"analyse":"une phrase","actions":["action1","action2"],"alertes":[]}';
+  var now = new Date();
+var mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][now.getMonth()];
+
+// Calcul tendance météo
+var tendance_meteo = 'stable';
+if (weather&&weather.hourly&&weather.hourly.temperature_2m.length>6) {
+  var t_now = weather.hourly.temperature_2m[0];
+  var t_6h = weather.hourly.temperature_2m[6];
+  if (t_6h - t_now > 2) tendance_meteo = 'en hausse (+'+( t_6h-t_now).toFixed(1)+'C dans 6h)';
+  else if (t_now - t_6h > 2) tendance_meteo = 'en baisse (-'+(t_now-t_6h).toFixed(1)+'C dans 6h)';
+}
+
+// Écart loi d'eau
+var ecart_teau = teau_actuelle && teau_calculee ? (teau_actuelle - teau_calculee).toFixed(1) : null;
+var ecart_str = ecart_teau ? (ecart_teau > 0 ? 'eau trop chaude de +'+ecart_teau+'C' : 'eau trop froide de '+ecart_teau+'C') : 'inconnu';
+
+var prompt = 'Tu es expert en pompes a chaleur residentielles.\n\n'
+  + 'CONTEXTE INSTALLATION:\n'
+  + '- Maison 210m2, radiateurs fonte haute inertie, monozone\n'
+  + '- PAC Viessmann Vitocal 150-A air/eau\n'
+  + '- Regulation: loi d\'eau + thermostats Tado par piece\n'
+  + '- Saison: ' + mois + ' (fin de saison de chauffe si mars/avril, plein hiver si dec/jan/fev)\n\n'
+  + 'ETAT ACTUEL:\n'
+  + '- temperature_exterieure: ' + temp_ext + ' degres C (tendance: ' + tendance_meteo + ')\n'
+  + '- temperature_eau_depart_actuelle: ' + teau_actuelle + ' degres C\n'
+  + '- temperature_eau_depart_calculee_loi_eau: ' + (teau_calculee?teau_calculee.toFixed(1):null) + ' degres C\n'
+  + '- ecart_eau_actuelle_vs_calculee: ' + ecart_str + '\n'
+  + '- etat_pac: ' + (puissance_w===null?'inconnu':puissance_w<70?'ARRETEE (puissance < 70W)':'EN MARCHE (puissance '+Math.round(puissance_w)+'W)') + '\n'
+  + '- cop_valide: ' + (cop_actuel&&!isNaN(cop_actuel)&&cop_actuel>0?'oui (COP='+cop_actuel+')':'non (PAC probablement arretee)') + '\n'
+  + '- mode: ' + (isNight()?'NUIT':'JOUR') + '\n'
+  + '- pieces_tado: ' + pieces_ctx + '\n'
+  + '- meteo_prochaines_12h: ' + meteo_12h + '\n\n'
+  + 'CONFIGURATION:\n'
+  + '- loi_eau: Teau = ' + cfg.functional.loiEauA + ' + (' + cfg.functional.loiEauB + ' x Text)\n'
+  + '- point_equilibre: ' + cfg.functional.tBalance + 'C (PAC arretee si Text > ' + cfg.functional.tBalance + 'C)\n'
+  + '- consigne_jour: ' + cfg.functional.consigneJour + 'C / consigne_nuit: ' + cfg.functional.consigneNuit + 'C\n\n'
+  + 'IMPORTANT: teau_recommandee = temperature eau circuit chauffage (entre 25 et 55C, PAS la temperature exterieure).\n'
+  + 'Si PAC arretee et pieces a consigne: confirmer arret justifie, recommander surveillance.\n'
+  + 'Si ecart eau important: suggerer ajustement loi eau.\n'
+  + 'Tenir compte de l\'inertie thermique des radiateurs fonte (lente a reagir).\n\n'
+  + 'Reponds JSON (une phrase max par champ texte):\n'
+  + '{"performance":"Bon","teau_recommandee":31.0,"analyse":"une phrase","actions":["action1","action2"],"alertes":[]}';
 
   var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+GEMINI_API_KEY;
 
