@@ -323,7 +323,8 @@ fetch(url,{
     contents:[{parts:[{text:prompt}]}],
     generationConfig:{
       temperature:0,
-      maxOutputTokens:8192,
+      maxOutputTokens:2048,
+      thinkingConfig:{thinkingBudget:0},
       responseMimeType:'application/json',
       responseSchema:{
         type:'OBJECT',
