@@ -343,7 +343,8 @@ function runAI() {
       contents:[{parts:[{text:prompt}]}],
       generationConfig:{
         temperature:0,
-        maxOutputTokens:512,
+        maxOutputTokens:2048,
+        thinkingConfig:{thinkingBudget:0},
         responseMimeType:'application/json',
         responseSchema:{
           type:'OBJECT',
