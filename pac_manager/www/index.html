@@ -322,7 +322,7 @@ function runAI() {
     +'Reponds avec exactement ce JSON (valeurs courtes, max 8 mots par string):\n'
     +'{"t":NOMBRE,"p":"Excellent|Bon|Moyen|A ameliorer","a":["action1","action2"],"al":[]}';
 
-  var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+GEMINI_API_KEY;
+  var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key='+GEMINI_API_KEY;
 
   fetch(url,{
     method:'POST',
