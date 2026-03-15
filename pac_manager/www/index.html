@@ -328,7 +328,7 @@ function runAI() {
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       contents:[{parts:[{text:prompt}]}],
-      generationConfig:{temperature:0.3,maxOutputTokens:4096}
+      generationConfig:{temperature:0,maxOutputTokens:8192}
     })
   })
   .then(function(r){
@@ -338,9 +338,15 @@ function runAI() {
   .then(function(data){
     var rawText='';
     try { rawText=data.candidates[0].content.parts[0].text; } catch(e){ throw new Error('Réponse Gemini inattendue: '+JSON.stringify(data).slice(0,200)); }
-    var s=rawText.indexOf('{'), e=rawText.lastIndexOf('}');
-    if (s===-1||e===-1||e<=s) throw new Error('JSON introuvable dans: '+rawText.slice(0,300));
-    aiResult=JSON.parse(rawText.slice(s,e+1));
+    
+    // Nettoyer les backticks markdown
+    var cleaned = rawText.replace(/```json/g,'').replace(/```/g,'').trim();
+    var s = cleaned.indexOf('{');
+    var e = cleaned.lastIndexOf('}');
+    if (s === -1 || e === -1 || e <= s) {
+      throw new Error('JSON incomplet (tronque?) : '+cleaned.slice(0,200));
+    }
+    aiResult = JSON.parse(cleaned.slice(s, e+1));
     aiResult.ts=new Date();
   })
   .catch(function(e){aiResult={error:e.message,ts:new Date()};})
