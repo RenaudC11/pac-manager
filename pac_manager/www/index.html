@@ -71,7 +71,7 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.0</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.1</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
@@ -82,7 +82,7 @@ button{font-family:inherit;cursor:pointer}
 <div class="tabs">
   <button class="tab active" id="tb-dashboard" onclick="showTab('dashboard')">◈ Dashboard</button>
   <button class="tab" id="tb-ai" onclick="showTab('ai')">◉ IA</button>
-  <button class="tab" id="tb-functional" onclick="showTab('functional')">◧ Fonctionnel</button>
+  <button class="tab" id="tb-functional" onclick="showTab('functional')">◧ Paramètres</button>
   <button class="tab" id="tb-system" onclick="showTab('system')">◌ Système</button>
 </div>
 <div class="content">
@@ -235,6 +235,7 @@ function renderDashboard() {
   var teau_act = cfg.entities.tEauDep&&haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
   var cop = cfg.entities.copInst&&haData[cfg.entities.copInst] ? parseFloat(haData[cfg.entities.copInst].state) : null;
   var pw = cfg.entities.puissElec&&haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state) : null;
+  var pt = cfg.entities.puissTherm&&haData[cfg.entities.puissTherm] ? parseFloat(haData[cfg.entities.puissTherm].state) : null;
   var mode_pac = detectModePAC(teau_act, pw);
   var pac_color = mode_pac==='CHAUFFAGE'?'#3fb950':mode_pac==='ECS'?'#f59e0b':'#6b7280';
   var hc = isHC();
@@ -264,6 +265,7 @@ function renderDashboard() {
     ['T° eau cible', teau_calc!==null?fmt(teau_calc):null, '°C', 'Loi d\'eau', '#d29922'],
     ['COP', cop!==null?fmt(cop,2):null, '', cop?(cop>4?'Excellent':cop>3?'Bon':'Moyen'):'', '#3fb950'],
     ['Puissance', pw!==null?String(Math.round(pw)):null, 'W', pw===null?'Non configuré':pw<70?'En veille':'En marche', '#f85149'],
+    ['Puiss. thermique', pt!==null?String(Math.round(pt)):null, 'W', pt&&pw&&pw>0?'COP='+((pt/pw).toFixed(1)):'', '#a78bfa'],
     ['Mode PAC', mode_pac==='ARRETEE_OU_VEILLE'?'Veille':mode_pac==='CHAUFFAGE'?'Chauffe':'ECS', '', (isNight()?'Nuit ':'Jour ')+cfg.functional[isNight()?'consigneNuit':'consigneJour']+'°C', pac_color]
   ].forEach(function(x){
     var c=mk('div','metric'); c.style.borderLeft='3px solid '+x[4];
@@ -273,20 +275,27 @@ function renderDashboard() {
   div.append(mg);
 
   if (cfg.rooms.length>0) {
-    var rh=mk('div'); rh.innerHTML='<div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em">Pièces Tado</div>';
-    var rg=mk('div','g-rooms');
-    cfg.rooms.forEach(function(r){
-      var t=haData[r.entityTemp]?haData[r.entityTemp].state:null;
-      var sp=haData[r.entitySetpoint]?(haData[r.entitySetpoint].attributes&&haData[r.entitySetpoint].attributes.temperature?haData[r.entitySetpoint].attributes.temperature:haData[r.entitySetpoint].state):null;
-      var d=t&&sp?parseFloat(t)-parseFloat(sp):null;
-      var col=d===null?'#6b7280':d>=0?'#3fb950':d<-1.5?'#f85149':'#d29922';
-      var c=mk('div','rcard'); c.style.borderTopColor=col;
-      c.innerHTML='<div style="font-size:11px;color:#8b949e;margin-bottom:5px;font-weight:500">'+r.name+'</div>'
-        +'<div style="display:flex;align-items:baseline;gap:5px"><span style="font-size:20px;font-weight:700;font-family:monospace;color:#e6edf3">'+(t?fmt(t)+'°':'—')+'</span>'+(sp?'<span style="font-size:11px;color:#6b7280">/ '+fmt(sp,0)+'°C</span>':'')+'</div>'
-        +(d!==null?'<div style="font-size:10px;color:'+col+';margin-top:2px">'+(d>=0?'+':'')+d.toFixed(1)+'°C vs consigne</div>':'');
-      rg.append(c);
+    var etages={};
+    cfg.rooms.forEach(function(r){var e=r.etage||'Non defini';if(!etages[e])etages[e]=[];etages[e].push(r);});
+    var eKeys=Object.keys(etages).sort(function(a,b){if(a==='Non defini')return 1;if(b==='Non defini')return -1;return a.localeCompare(b);});
+    eKeys.forEach(function(etage){
+      var rh=mk('div'); rh.style.marginBottom='14px';
+      var label=etage==='Non defini'?'Pièces Tado':etage;
+      rh.innerHTML='<div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em">'+label+'</div>';
+      var rg=mk('div','g-rooms');
+      etages[etage].forEach(function(r){
+        var t=haData[r.entityTemp]?haData[r.entityTemp].state:null;
+        var sp=haData[r.entitySetpoint]?(haData[r.entitySetpoint].attributes&&haData[r.entitySetpoint].attributes.temperature?haData[r.entitySetpoint].attributes.temperature:haData[r.entitySetpoint].state):null;
+        var d=t&&sp?parseFloat(t)-parseFloat(sp):null;
+        var col=d===null?'#6b7280':d>=0?'#3fb950':d<-1.5?'#f85149':'#d29922';
+        var c=mk('div','rcard'); c.style.borderTopColor=col;
+        c.innerHTML='<div style="font-size:11px;color:#8b949e;margin-bottom:5px;font-weight:500">'+r.name+'</div>'
+          +'<div style="display:flex;align-items:baseline;gap:5px"><span style="font-size:20px;font-weight:700;font-family:monospace;color:#e6edf3">'+(t?fmt(t)+'°':'—')+'</span>'+(sp?'<span style="font-size:11px;color:#6b7280">/ '+fmt(sp,0)+'°C</span>':'')+'</div>'
+          +(d!==null?'<div style="font-size:10px;color:'+col+';margin-top:2px">'+(d>=0?'+':'')+d.toFixed(1)+'°C vs consigne</div>':'');
+        rg.append(c);
+      });
+      rh.append(rg); div.append(rh);
     });
-    rh.append(rg); div.append(rh);
   } else {
     div.append(mk('div','info','💡 Aucune pièce Tado — ajoutez-en dans l\'onglet Système.'));
   }
@@ -684,14 +693,16 @@ function renderSystem() {
     } else {
       cfg.rooms.forEach(function(r){
         var box=mk('div','troom');
-        box.innerHTML='<div class="troom-hdr"><span class="troom-name">'+r.name+'</span><button class="btn-del">Supprimer</button></div>'
-          +'<div class="troom-fields">'
+        box.innerHTML='<div class="troom-hdr"><span class="troom-name">'+r.name+(r.etage?'<span style="font-size:10px;color:#6b7280;margin-left:6px">'+r.etage+'</span>':'')+'</span><button class="btn-del">Supprimer</button></div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'
           +'<div><div class="lbl">Capteur température</div><input class="inp-t" value="'+(r.entityTemp||'')+'" placeholder="sensor.tado_..."></div>'
           +'<div><div class="lbl">Entité climate</div><input class="inp-s" value="'+(r.entitySetpoint||'')+'" placeholder="climate.tado_..."></div>'
+          +'<div><div class="lbl">Étage</div><input class="inp-e" value="'+(r.etage||'')+'" placeholder="RDC, 1er étage..."></div>'
           +'</div>';
         box.querySelector('.btn-del').addEventListener('click',function(){cfg.rooms=cfg.rooms.filter(function(x){return x.id!==r.id;});save();rebuildRooms();});
         box.querySelector('.inp-t').addEventListener('change',function(e){r.entityTemp=e.target.value;save();});
         box.querySelector('.inp-s').addEventListener('change',function(e){r.entitySetpoint=e.target.value;save();});
+        box.querySelector('.inp-e').addEventListener('change',function(e){r.etage=e.target.value;save();rebuildRooms();});
         roomList.append(box);
       });
     }
@@ -700,10 +711,14 @@ function renderSystem() {
   s3.append(roomList);
   var addbox=mk('div','addbox');
   addbox.innerHTML='<div style="font-size:11px;font-weight:600;color:#58a6ff;margin-bottom:10px">Ajouter une pièce Tado</div>'
-    +'<div class="g3" style="margin-bottom:10px">'
+    +'<div class="g3" style="margin-bottom:8px">'
     +'<div><div class="lbl">Nom *</div><input id="nr-n" placeholder="Ex: Salon"></div>'
     +'<div><div class="lbl">Capteur température</div><input id="nr-t" placeholder="sensor.tado_salon_temperature"></div>'
     +'<div><div class="lbl">Entité climate</div><input id="nr-s" placeholder="climate.tado_salon"></div>'
+    +'</div>'
+    +'<div class="g2" style="margin-bottom:10px">'
+    +'<div><div class="lbl">Étage</div><input id="nr-e" placeholder="Ex: RDC, 1er étage, Sous-sol..."></div>'
+    +'<div></div>'
     +'</div>'
     +'<button class="btn-add" id="btn-add">Ajouter cette pièce</button>';
   s3.append(addbox);
@@ -714,8 +729,9 @@ function renderSystem() {
     var sp=(document.getElementById('nr-s').value||'').trim();
     if (!name){document.getElementById('nr-n').style.borderColor='#f85149';document.getElementById('nr-n').focus();return;}
     document.getElementById('nr-n').style.borderColor='';
-    cfg.rooms.push({id:Date.now(),name:name,entityTemp:temp,entitySetpoint:sp});
-    save(); document.getElementById('nr-n').value=''; document.getElementById('nr-t').value=''; document.getElementById('nr-s').value='';
+    var etage=(document.getElementById('nr-e').value||'').trim();
+    cfg.rooms.push({id:Date.now(),name:name,entityTemp:temp,entitySetpoint:sp,etage:etage});
+    save(); document.getElementById('nr-n').value=''; document.getElementById('nr-t').value=''; document.getElementById('nr-s').value=''; document.getElementById('nr-e').value='';
     rebuildRooms();
   });
   div.append(mk('div','note','💡 Trouver les entity_id Tado : HA → Outils de développement → États → filtrer "tado". Copiez l\'entity_id exact.'));
