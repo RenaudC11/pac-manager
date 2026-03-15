@@ -315,9 +315,8 @@ function runAI() {
   +'{"analyse":"max 15 mots","tEauRecommandee":35.5,"justification":"max 15 mots","actions":["action courte"],"performance":"Bon","alertes":[]}';
   
   // API Gemini — gratuit jusqu'à 1500 req/jour
-var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key='+GEMINI_API_KEY;
-
-fetch(url, {
+var url='https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key='+GEMINI_API_KEY;
+fetch(url,{
   method:'POST',
   headers:{'Content-Type':'application/json'},
   body:JSON.stringify({
@@ -327,14 +326,14 @@ fetch(url, {
       maxOutputTokens:1024,
       responseMimeType:'application/json',
       responseSchema:{
-        type:'object',
+        type:'OBJECT',
         properties:{
-          analyse:{type:'string'},
-          tEauRecommandee:{type:'number'},
-          justification:{type:'string'},
-          actions:{type:'array',items:{type:'string'}},
-          performance:{type:'string',enum:['Excellent','Bon','Moyen','A ameliorer']},
-          alertes:{type:'array',items:{type:'string'}}
+          analyse:{type:'STRING'},
+          tEauRecommandee:{type:'NUMBER'},
+          justification:{type:'STRING'},
+          actions:{type:'ARRAY',items:{type:'STRING'}},
+          performance:{type:'STRING'},
+          alertes:{type:'ARRAY',items:{type:'STRING'}}
         },
         required:['analyse','tEauRecommandee','justification','actions','performance','alertes']
       }
@@ -343,9 +342,10 @@ fetch(url, {
 })
   .then(function(data){
     var rawText='';
-    try { rawText=data.candidates[0].content.parts[0].text; } 
-    catch(e){ throw new Error('Reponse Gemini inattendue: '+JSON.stringify(data).slice(0,200)); }
-    aiResult=JSON.parse(rawText);
+    try { rawText=data.candidates[0].content.parts[0].text; }
+    catch(e){ throw new Error('Reponse inattendue: '+JSON.stringify(data).slice(0,200)); }
+    var clean=rawText.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+    aiResult=JSON.parse(clean);
     aiResult.ts=new Date();
   })
   
