@@ -71,11 +71,12 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.1</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.2</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
     <span style="font-size:10px;color:#6b7280" id="status">—</span>
+    <span class="dot" id="save-dot" style="background:#6b7280" title="Config non sauvegardée"></span>
     <button style="background:none;border:1px solid #30363d;color:#8b949e;border-radius:5px;padding:4px 9px;font-size:11px" onclick="appRefresh()">⟳</button>
   </div>
 </div>
@@ -113,25 +114,55 @@ var DEF = {
   rooms: []
 };
 
+function parseCfg(s) {
+  if (!s) return JSON.parse(JSON.stringify(DEF));
+  return {
+    system: Object.assign({}, DEF.system, s.system),
+    functional: Object.assign({}, DEF.functional, s.functional),
+    tariff: Object.assign({}, DEF.tariff, s.tariff),
+    thermal: Object.assign({}, DEF.thermal, s.thermal),
+    entities: Object.assign({}, DEF.entities, s.entities),
+    rooms: s.rooms || []
+  };
+}
+
 function loadCfg() {
   try {
     var s = JSON.parse(localStorage.getItem(SK));
     if (!s) return JSON.parse(JSON.stringify(DEF));
-    return {
-      system: Object.assign({}, DEF.system, s.system),
-      functional: Object.assign({}, DEF.functional, s.functional),
-      tariff: Object.assign({}, DEF.tariff, s.tariff),
-      thermal: Object.assign({}, DEF.thermal, s.thermal),
-      entities: Object.assign({}, DEF.entities, s.entities),
-      rooms: s.rooms || []
-    };
+    return parseCfg(s);
   } catch(e) { return JSON.parse(JSON.stringify(DEF)); }
 }
 
 var cfg = loadCfg();
 var haData = {}, weather = null, lastUpd = null, aiResult = null, currentTab = 'dashboard';
 
-function save() { try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {} }
+// Charger la config depuis le serveur (prioritaire sur localStorage)
+fetch('/pac-config')
+  .then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(serverCfg){
+    if (!serverCfg || Object.keys(serverCfg).length === 0) return;
+    cfg = parseCfg(serverCfg);
+    // Synchroniser localStorage avec la config serveur
+    try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {}
+    setStatus('#3fb950', 'Config chargée');
+    renderCurrent();
+  })
+  .catch(function(){
+    // Fallback silencieux sur localStorage déjà chargé
+  });
+
+function save() {
+  try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {}
+  // Persister sur le serveur (survit au changement de navigateur/ordinateur)
+  fetch('/pac-config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(cfg)
+  }).then(function(r){
+    if(r.ok){ var d=document.getElementById('save-dot'); if(d){d.style.background='#3fb950';d.title='Config sauvegardée';} }
+  }).catch(function(){ var d=document.getElementById('save-dot'); if(d){d.style.background='#f85149';d.title='Erreur sauvegarde';} });
+}
 function tEauCalc(t) { return Math.max(25, Math.min(55, cfg.functional.loiEauA + cfg.functional.loiEauB * t)); }
 function fmt(v, d) { d = d === undefined ? 1 : d; return v != null ? parseFloat(v).toFixed(d) : '—'; }
 
