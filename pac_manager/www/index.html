@@ -60,7 +60,7 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.8.5</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.8.6</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
@@ -195,7 +195,7 @@ function renderDashboard() {
 
   var mg = mk('div','g-auto');
   [
-    ['T° extérieure', temp_ext!==null?fmt(temp_ext):null, '°C', weather?'Open-Meteo':'—', '#58a6ff'],
+    ['T° extérieure', temp_ext!==null?fmt(temp_ext):null, '°C', cfg.entities.tExt&&haData[cfg.entities.tExt]?'Capteur HA':'Open-Meteo', '#58a6ff'],
     ['T° eau actuelle', teau_actuelle!==null?fmt(teau_actuelle):null, '°C',
       teau_actuelle?( teau_actuelle>45?'🔥 Mode ECS':'Chauffage'):'Non configuré', '#f59e0b'],
     ['T° eau cible', teau_calculee!==null?fmt(teau_calculee):null, '°C', 'Loi d\'eau', '#d29922'],
@@ -359,7 +359,7 @@ function runAI() {
     + '- Regulation: loi d\'eau + thermostats Tado par piece\n'
     + '- Saison: ' + mois + '\n\n'
     + 'ETAT ACTUEL:\n'
-    + '- temperature_exterieure: ' + temp_ext + 'C (tendance: ' + tendance_meteo + ')\n'
+    + '- temperature_exterieure: ' + temp_ext + 'C (source: ' + (cfg.entities.tExt&&haData[cfg.entities.tExt]?'capteur HA reel':'meteo Open-Meteo') + ', tendance: ' + tendance_meteo + ')\n'
     + '- temperature_eau_depart_actuelle: ' + teau_actuelle + 'C\n'
     + '- temperature_eau_depart_calculee_loi_eau: ' + (teau_calculee?teau_calculee.toFixed(1):null) + 'C\n'
     + '- ecart_teau: ' + ecart_str + '\n'
@@ -372,7 +372,7 @@ function runAI() {
     + '- meteo_12h: ' + meteo_12h + '\n\n'
     + 'CONFIGURATION LOI EAU:\n'
     + '- formule: Teau_depart = ' + cfg.functional.loiEauA + ' + (' + cfg.functional.loiEauB + ' x Text)\n'
-    + '- point_equilibre: ' + cfg.functional.tBalance + 'C (PAC arretee si Text > ' + cfg.functional.tBalance + 'C)\n'
+    + '- point_equilibre: ' + cfg.functional.tBalance + 'C (PAC arretee UNIQUEMENT si Text > ' + cfg.functional.tBalance + 'C — si Text=' + temp_ext + 'C alors PAC ' + (temp_ext!==null&&temp_ext>cfg.functional.tBalance?'devrait etre arretee':'devrait pouvoir chauffer') + ')\n'
     + '- consigne_jour: ' + cfg.functional.consigneJour + 'C / consigne_nuit: ' + cfg.functional.consigneNuit + 'C\n\n'
     + 'REGLES:\n'
     + '- Si mode_pac=ECS: ne pas recommander de Teau chauffage, signaler que PAC est en mode ECS (normal)\n'
