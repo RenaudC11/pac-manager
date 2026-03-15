@@ -342,7 +342,7 @@ fetch(url,{
   .then(function(data){
     var rawText='';
     try { rawText=data.candidates[0].content.parts[0].text; }
-    catch(e){ throw new Error('Reponse inattendue: '+JSON.stringify(data).slice(0,200)); }
+    catch(e){ throw new Error('Reponse inattendue: '+JSON.stringify(data).slice(0,1000)); }
     var clean=rawText.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
     // Réparer le JSON tronqué
     function repairJSON(s) {
@@ -369,7 +369,7 @@ fetch(url,{
       return result;
     }
     var s=clean.indexOf('{');
-    if (s===-1) throw new Error('Pas de JSON dans la reponse: '+clean.slice(0,100));
+    if (s===-1) throw new Error('Pas de JSON dans la reponse: '+clean.slice(0,1000));
     var repaired = repairJSON(clean.slice(s));
     aiResult=JSON.parse(repaired);
     aiResult.ts=new Date();
