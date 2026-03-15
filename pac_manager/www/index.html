@@ -60,7 +60,7 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.8.0</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.8.5</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
@@ -124,9 +124,19 @@ function isNight() {
   var nh = parseInt(cfg.functional.heureNuit.split(':')[0]);
   var nm = parseInt(cfg.functional.heureNuit.split(':')[1]);
   var dh = parseInt(cfg.functional.heureJour.split(':')[0]);
-  var ni = nh*60+nm, di = dh*60+parseInt(cfg.functional.heureJour.split(':')[1]);
+  var dm = parseInt(cfg.functional.heureJour.split(':')[1]);
+  var ni = nh*60+nm, di = dh*60+dm;
   return ni > di ? (cur >= ni || cur < di) : (cur >= ni && cur < di);
 }
+
+// Détection mode PAC
+function detectModePAC(teau_actuelle, puissance_w) {
+  var en_marche = puissance_w !== null && puissance_w > 70;
+  if (!en_marche) return 'ARRETEE_OU_VEILLE';
+  if (teau_actuelle !== null && teau_actuelle > 45) return 'ECS (eau chaude sanitaire, Teau > 45C)';
+  return 'CHAUFFAGE';
+}
+
 function haGet(id) {
   return fetch(cfg.system.haUrl + '/api/states/' + id, {
     headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'}
@@ -174,25 +184,34 @@ function renderCurrent() {
 
 function renderDashboard() {
   var div = document.getElementById('p-dashboard'); if (!div) return; div.innerHTML='';
-  var tExt = cfg.entities.tExt && haData[cfg.entities.tExt] ? parseFloat(haData[cfg.entities.tExt].state) : (weather&&weather.current_weather?weather.current_weather.temperature:null);
-  var tEauRec = tExt!==null ? tEauCalc(tExt) : null;
-  var tEauAct = cfg.entities.tEauDep&&haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
-  var cop = cfg.entities.copInst&&haData[cfg.entities.copInst] ? parseFloat(haData[cfg.entities.copInst].state) : null;
-  var pw = cfg.entities.puissElec&&haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state) : null;
+  var temp_ext = cfg.entities.tExt&&haData[cfg.entities.tExt] ? parseFloat(haData[cfg.entities.tExt].state) : (weather&&weather.current_weather?weather.current_weather.temperature:null);
+  var teau_calculee = temp_ext!==null ? tEauCalc(temp_ext) : null;
+  var teau_actuelle = cfg.entities.tEauDep&&haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
+  var cop_actuel = cfg.entities.copInst&&haData[cfg.entities.copInst] ? parseFloat(haData[cfg.entities.copInst].state) : null;
+  var puissance_w = cfg.entities.puissElec&&haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state) : null;
   var night = isNight();
+  var mode_pac = detectModePAC(teau_actuelle, puissance_w);
+  var pac_color = mode_pac==='CHAUFFAGE'?'#3fb950':mode_pac.indexOf('ECS')!==-1?'#f59e0b':'#6b7280';
+
   var mg = mk('div','g-auto');
-  [['T° extérieure',tExt!==null?fmt(tExt):null,'°C',weather?'Open-Meteo':'—','#58a6ff'],
-   ['T° eau actuelle',tEauAct!==null?fmt(tEauAct):null,'°C',tEauAct?'HA':'Non configuré','#f59e0b'],
-   ['T° eau cible',tEauRec!==null?fmt(tEauRec):null,'°C','Loi d\'eau','#d29922'],
-   ['COP',cop!==null?fmt(cop,2):null,'',cop?(cop>4?'Excellent':cop>3?'Bon':'Moyen'):'','#3fb950'],
-   ['Puissance',pw!==null?String(Math.round(pw)):null,'W','PAC','#f85149'],
-   ['Mode',night?'Nuit':'Jour','','Consigne '+(night?cfg.functional.consigneNuit:cfg.functional.consigneJour)+'°C',night?'#58a6ff':'#f59e0b']
+  [
+    ['T° extérieure', temp_ext!==null?fmt(temp_ext):null, '°C', weather?'Open-Meteo':'—', '#58a6ff'],
+    ['T° eau actuelle', teau_actuelle!==null?fmt(teau_actuelle):null, '°C',
+      teau_actuelle?( teau_actuelle>45?'🔥 Mode ECS':'Chauffage'):'Non configuré', '#f59e0b'],
+    ['T° eau cible', teau_calculee!==null?fmt(teau_calculee):null, '°C', 'Loi d\'eau', '#d29922'],
+    ['COP', cop_actuel!==null?fmt(cop_actuel,2):null, '',
+      cop_actuel?(cop_actuel>4?'Excellent':cop_actuel>3?'Bon':'Moyen'):'', '#3fb950'],
+    ['Puissance', puissance_w!==null?String(Math.round(puissance_w)):null, 'W',
+      puissance_w===null?'Non configuré':puissance_w<70?'En veille':'En marche', '#f85149'],
+    ['Mode PAC', mode_pac==='ARRETEE_OU_VEILLE'?'Veille':mode_pac==='CHAUFFAGE'?'Chauffe':mode_pac.indexOf('ECS')!==-1?'ECS':'—',
+      '', (isNight()?'Nuit ':'Jour ')+cfg.functional[isNight()?'consigneNuit':'consigneJour']+'°C', pac_color]
   ].forEach(function(x){
     var c=mk('div','metric'); c.style.borderLeft='3px solid '+x[4];
     c.innerHTML='<div class="lbl">'+x[0]+'</div><div class="mval">'+(x[1]||'—')+(x[2]?'<span style="font-size:12px;color:#6b7280;margin-left:2px">'+x[2]+'</span>':'')+'</div>'+(x[3]?'<div style="font-size:10px;color:#6b7280;margin-top:3px">'+x[3]+'</div>':'');
     mg.append(c);
   });
   div.append(mg);
+
   if (cfg.rooms.length>0) {
     var rh=mk('div'); rh.innerHTML='<div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em">Pièces Tado</div>';
     var rg=mk('div','g-rooms');
@@ -211,6 +230,7 @@ function renderDashboard() {
   } else {
     div.append(mk('div','info','💡 Aucune pièce Tado — ajoutez-en dans l\'onglet <strong>Système</strong>.'));
   }
+
   if (weather&&weather.hourly) {
     var now=new Date(),h=weather.hourly;
     var fc=h.time.map(function(t,i){return {time:t,temp:h.temperature_2m[i],cloud:h.cloud_cover[i]};})
@@ -258,12 +278,12 @@ function renderAI() {
     +(aiResult.analyse?'<p style="margin:0;font-size:12px;line-height:1.6;color:#c9d1d9">'+aiResult.analyse+'</p>':'');
   div.append(card);
   if (aiResult.teau_recommandee && aiResult.teau_recommandee >= 25 && aiResult.teau_recommandee <= 55) {
-    var tEauAct=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
+    var teau_actuelle=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
     var rec=mk('div','ai-rec');
     rec.innerHTML='<div class="lbl">T° eau départ recommandée</div>'
       +'<div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 0">'
       +'<span style="font-size:28px;font-weight:700;font-family:monospace;color:#3fb950">'+parseFloat(aiResult.teau_recommandee).toFixed(1)+'°C</span>'
-      +(tEauAct?'<span style="font-size:12px;color:#6b7280">actuel: '+fmt(tEauAct)+'°C</span>':'')
+      +(teau_actuelle?'<span style="font-size:12px;color:#6b7280">actuel: '+fmt(teau_actuelle)+'°C</span>':'')
       +'</div>';
     div.append(rec);
   }
@@ -295,6 +315,7 @@ function runAI() {
   var teau_actuelle = cfg.entities.tEauDep&&haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
   var cop_actuel = cfg.entities.copInst&&haData[cfg.entities.copInst] ? parseFloat(haData[cfg.entities.copInst].state) : null;
   var puissance_w = cfg.entities.puissElec&&haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state) : null;
+  var mode_pac = detectModePAC(teau_actuelle, puissance_w);
 
   var pieces_ctx = cfg.rooms.map(function(r){
     var temp_piece = haData[r.entityTemp] ? haData[r.entityTemp].state : '?';
@@ -303,6 +324,25 @@ function runAI() {
   }).join(', ') || 'aucune piece configuree';
 
   var now = new Date();
+  var mois = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'][now.getMonth()];
+
+  // Tendance météo
+  var tendance_meteo = 'stable';
+  if (weather&&weather.hourly&&weather.hourly.temperature_2m.length>6) {
+    var t_now = weather.hourly.temperature_2m[0];
+    var t_6h = weather.hourly.temperature_2m[6];
+    if (t_6h - t_now > 2) tendance_meteo = 'en hausse (+'+( t_6h-t_now).toFixed(1)+'C dans 6h)';
+    else if (t_now - t_6h > 2) tendance_meteo = 'en baisse (-'+(t_now-t_6h).toFixed(1)+'C dans 6h)';
+  }
+
+  // Écart loi d'eau
+  var ecart_str = 'inconnu';
+  if (teau_actuelle && teau_calculee) {
+    var ecart = (teau_actuelle - teau_calculee).toFixed(1);
+    ecart_str = ecart > 0 ? 'eau trop chaude de +'+ecart+'C vs loi d\'eau' : 'eau trop froide de '+ecart+'C vs loi d\'eau';
+  }
+
+  // Météo 12h
   var meteo_12h = 'indisponible';
   if (weather&&weather.hourly) {
     var h=weather.hourly;
@@ -312,49 +352,36 @@ function runAI() {
     if (fc.length) meteo_12h = fc.map(function(p){return p.time.slice(11,16)+':'+p.temp+'C';}).join(' ');
   }
 
-  // Prompt explicite avec noms de variables non ambigus
-  var now = new Date();
-var mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][now.getMonth()];
-
-// Calcul tendance météo
-var tendance_meteo = 'stable';
-if (weather&&weather.hourly&&weather.hourly.temperature_2m.length>6) {
-  var t_now = weather.hourly.temperature_2m[0];
-  var t_6h = weather.hourly.temperature_2m[6];
-  if (t_6h - t_now > 2) tendance_meteo = 'en hausse (+'+( t_6h-t_now).toFixed(1)+'C dans 6h)';
-  else if (t_now - t_6h > 2) tendance_meteo = 'en baisse (-'+(t_now-t_6h).toFixed(1)+'C dans 6h)';
-}
-
-// Écart loi d'eau
-var ecart_teau = teau_actuelle && teau_calculee ? (teau_actuelle - teau_calculee).toFixed(1) : null;
-var ecart_str = ecart_teau ? (ecart_teau > 0 ? 'eau trop chaude de +'+ecart_teau+'C' : 'eau trop froide de '+ecart_teau+'C') : 'inconnu';
-
-var prompt = 'Tu es expert en pompes a chaleur residentielles.\n\n'
-  + 'CONTEXTE INSTALLATION:\n'
-  + '- Maison 210m2, radiateurs fonte haute inertie, monozone\n'
-  + '- PAC Viessmann Vitocal 150-A air/eau\n'
-  + '- Regulation: loi d\'eau + thermostats Tado par piece\n'
-  + '- Saison: ' + mois + ' (fin de saison de chauffe si mars/avril, plein hiver si dec/jan/fev)\n\n'
-  + 'ETAT ACTUEL:\n'
-  + '- temperature_exterieure: ' + temp_ext + ' degres C (tendance: ' + tendance_meteo + ')\n'
-  + '- temperature_eau_depart_actuelle: ' + teau_actuelle + ' degres C\n'
-  + '- temperature_eau_depart_calculee_loi_eau: ' + (teau_calculee?teau_calculee.toFixed(1):null) + ' degres C\n'
-  + '- ecart_eau_actuelle_vs_calculee: ' + ecart_str + '\n'
-  + '- etat_pac: ' + (puissance_w===null?'inconnu':puissance_w<70?'ARRETEE (puissance < 70W)':'EN MARCHE (puissance '+Math.round(puissance_w)+'W)') + '\n'
-  + '- cop_valide: ' + (cop_actuel&&!isNaN(cop_actuel)&&cop_actuel>0?'oui (COP='+cop_actuel+')':'non (PAC probablement arretee)') + '\n'
-  + '- mode: ' + (isNight()?'NUIT':'JOUR') + '\n'
-  + '- pieces_tado: ' + pieces_ctx + '\n'
-  + '- meteo_prochaines_12h: ' + meteo_12h + '\n\n'
-  + 'CONFIGURATION:\n'
-  + '- loi_eau: Teau = ' + cfg.functional.loiEauA + ' + (' + cfg.functional.loiEauB + ' x Text)\n'
-  + '- point_equilibre: ' + cfg.functional.tBalance + 'C (PAC arretee si Text > ' + cfg.functional.tBalance + 'C)\n'
-  + '- consigne_jour: ' + cfg.functional.consigneJour + 'C / consigne_nuit: ' + cfg.functional.consigneNuit + 'C\n\n'
-  + 'IMPORTANT: teau_recommandee = temperature eau circuit chauffage (entre 25 et 55C, PAS la temperature exterieure).\n'
-  + 'Si PAC arretee et pieces a consigne: confirmer arret justifie, recommander surveillance.\n'
-  + 'Si ecart eau important: suggerer ajustement loi eau.\n'
-  + 'Tenir compte de l\'inertie thermique des radiateurs fonte (lente a reagir).\n\n'
-  + 'Reponds JSON (une phrase max par champ texte):\n'
-  + '{"performance":"Bon","teau_recommandee":31.0,"analyse":"une phrase","actions":["action1","action2"],"alertes":[]}';
+  var prompt = 'Tu es expert en pompes a chaleur residentielles. Reponds en JSON uniquement.\n\n'
+    + 'CONTEXTE INSTALLATION:\n'
+    + '- Maison 210m2, radiateurs fonte haute inertie, monozone\n'
+    + '- PAC Viessmann Vitocal 150-A air/eau\n'
+    + '- Regulation: loi d\'eau + thermostats Tado par piece\n'
+    + '- Saison: ' + mois + '\n\n'
+    + 'ETAT ACTUEL:\n'
+    + '- temperature_exterieure: ' + temp_ext + 'C (tendance: ' + tendance_meteo + ')\n'
+    + '- temperature_eau_depart_actuelle: ' + teau_actuelle + 'C\n'
+    + '- temperature_eau_depart_calculee_loi_eau: ' + (teau_calculee?teau_calculee.toFixed(1):null) + 'C\n'
+    + '- ecart_teau: ' + ecart_str + '\n'
+    + '- mode_pac_detecte: ' + mode_pac + '\n'
+    + '  (ARRETEE_OU_VEILLE si puissance<70W | CHAUFFAGE si puissance>70W et Teau<45C | ECS si puissance>70W et Teau>45C)\n'
+    + '- puissance_electrique: ' + (puissance_w!==null?Math.round(puissance_w)+'W':'inconnue') + '\n'
+    + '- cop_actuel: ' + (cop_actuel&&!isNaN(cop_actuel)&&cop_actuel>0&&puissance_w>70?cop_actuel:'non valide (PAC arretee ou en veille)') + '\n'
+    + '- mode_horaire: ' + (isNight()?'NUIT':'JOUR') + '\n'
+    + '- pieces_tado: ' + pieces_ctx + '\n'
+    + '- meteo_12h: ' + meteo_12h + '\n\n'
+    + 'CONFIGURATION LOI EAU:\n'
+    + '- formule: Teau_depart = ' + cfg.functional.loiEauA + ' + (' + cfg.functional.loiEauB + ' x Text)\n'
+    + '- point_equilibre: ' + cfg.functional.tBalance + 'C (PAC arretee si Text > ' + cfg.functional.tBalance + 'C)\n'
+    + '- consigne_jour: ' + cfg.functional.consigneJour + 'C / consigne_nuit: ' + cfg.functional.consigneNuit + 'C\n\n'
+    + 'REGLES:\n'
+    + '- Si mode_pac=ECS: ne pas recommander de Teau chauffage, signaler que PAC est en mode ECS (normal)\n'
+    + '- Si mode_pac=ARRETEE et pieces a consigne: arret justifie\n'
+    + '- Si mode_pac=ARRETEE et pieces sous consigne: PAC devrait chauffer, verifier\n'
+    + '- teau_recommandee = temperature eau circuit chauffage uniquement (entre 25 et 55C, PAS la temperature exterieure)\n'
+    + '- Tenir compte inertie thermique radiateurs fonte (reaction lente)\n\n'
+    + 'JSON attendu (une phrase max par champ texte):\n'
+    + '{"performance":"Bon","teau_recommandee":31.0,"analyse":"une phrase","actions":["action1","action2"],"alertes":[]}';
 
   var url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+GEMINI_API_KEY;
 
@@ -394,8 +421,8 @@ var prompt = 'Tu es expert en pompes a chaleur residentielles.\n\n'
     var s=clean.indexOf('{'), e=clean.lastIndexOf('}');
     if (s===-1||e===-1||e<=s) throw new Error('JSON invalide: '+clean.slice(0,300));
     aiResult=JSON.parse(clean.slice(s,e+1));
-    // Garde-fou physique : teau_recommandee doit etre entre 25 et 55
-    if (aiResult.teau_recommandee < 25 || aiResult.teau_recommandee > 55) {
+    // Garde-fou physique
+    if (!aiResult.teau_recommandee || aiResult.teau_recommandee < 25 || aiResult.teau_recommandee > 55) {
       aiResult.teau_recommandee = teau_calculee ? parseFloat(teau_calculee.toFixed(1)) : 35.0;
     }
     aiResult.ts=new Date();
