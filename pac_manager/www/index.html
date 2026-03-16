@@ -138,7 +138,7 @@ var cfg = loadCfg();
 var haData = {}, weather = null, lastUpd = null, aiResult = null, currentTab = 'dashboard';
 
 // Charger config depuis serveur (prioritaire, survit au changement de PC)
-fetch('/pac-config')
+fetch(window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') + '/pac-config')
   .then(function(r) { return r.ok ? r.json() : null; })
   .then(function(sc) {
     if (!sc || Object.keys(sc).length === 0) return;
@@ -152,7 +152,7 @@ fetch('/pac-config')
 
 function save() {
   try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {}
-  fetch('/pac-config', {
+  fetch(window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') + '/pac-config', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(cfg)
   }).then(function(r) {
