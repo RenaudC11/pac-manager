@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PAC Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#0d1117;color:#c9d1d9;font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;min-height:100vh}
+input{background:#161b22;border:1px solid #30363d;border-radius:5px;color:#c9d1d9;padding:6px 9px;font-size:12px;width:100%;outline:none;font-family:inherit}
+input:focus{border-color:#58a6ff}
+button{font-family:inherit;cursor:pointer}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:#161b22}
+::-webkit-scrollbar-thumb{background:#30363d;border-radius:2px}
+.header{background:#161b22;border-bottom:1px solid #21262d;padding:10px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
+.logo{width:26px;height:26px;background:#f59e0b22;border:1px solid #f59e0b44;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.tabs{background:#161b22;border-bottom:1px solid #21262d;display:flex;padding:0 14px;gap:2px;flex-wrap:wrap}
+.tab{background:none;border:none;border-bottom:2px solid transparent;color:#8b949e;padding:9px 12px;cursor:pointer;font-size:12px;margin-bottom:-1px;white-space:nowrap}
+.tab.active{color:#e6edf3;border-bottom-color:#58a6ff}
+.content{padding:14px}
+.section{background:#161b22;border:1px solid #21262d;border-radius:7px;padding:14px;margin-bottom:14px}
+.stitle{font-size:12px;font-weight:600;color:#e6edf3;margin-bottom:12px;padding-bottom:7px;border-bottom:1px solid #21262d}
+.g-auto{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:16px}
+.g-rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:7px;margin-bottom:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.metric{background:#161b22;border:1px solid #21262d;border-radius:7px;padding:12px 13px}
+.mval{font-size:21px;font-weight:700;font-family:monospace;color:#e6edf3;line-height:1.1}
+.lbl{font-size:10px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.rcard{background:#161b22;border:1px solid #21262d;border-radius:7px;padding:10px 12px;border-top-width:3px}
+.fc-bar{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.fc-cell{text-align:center;min-width:58px;padding:7px 5px;background:#0d1117;border-radius:6px;border:1px solid #21262d;flex-shrink:0}
+.loi-bar{display:flex;gap:4px;overflow-x:auto;margin-top:10px}
+.loi-cell{text-align:center;min-width:58px;padding:8px 4px;background:#0d1117;border-radius:6px}
+.btn{border-radius:6px;padding:7px 14px;font-size:12px;font-weight:500;background:#1f6feb22;border:1px solid #1f6feb55;color:#58a6ff}
+.btn:disabled{opacity:.5;cursor:wait}
+.btn-green{border-radius:6px;padding:7px 14px;font-size:12px;font-weight:500;background:#3fb95022;border:1px solid #3fb95055;color:#3fb950}
+.btn-green:disabled{opacity:.5;cursor:wait}
+.btn-add{border-radius:6px;padding:8px 16px;font-size:12px;font-weight:600;background:#1f6feb33;border:1px solid #58a6ff66;color:#58a6ff;width:100%;margin-top:8px}
+.btn-del{background:none;border:1px solid #f8514944;color:#f85149;border-radius:4px;padding:4px 8px;font-size:11px;flex-shrink:0}
+.badge{border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600}
+.badge-hc{background:#3fb95022;color:#3fb950;border:1px solid #3fb95044}
+.badge-hp{background:#f8514922;color:#f85149;border:1px solid #f8514944}
+.warn{padding:10px;background:#1a1700;border:1px solid #d2992244;border-radius:7px;font-size:11px;color:#d29922;margin-bottom:10px}
+.info{padding:10px;background:#0a1a2a;border:1px solid #1f6feb44;border-radius:7px;font-size:11px;color:#58a6ff;margin-bottom:10px}
+.ok{padding:10px;background:#0a1a0a;border:1px solid #3fb95033;border-radius:7px;font-size:11px;color:#3fb950;margin-bottom:10px}
+.errbox{padding:14px;background:#1c1010;border:1px solid #f8514944;border-radius:7px;color:#f85149;font-size:12px;margin-bottom:10px;word-break:break-all}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.ai-card{border:1px solid #21262d;border-radius:7px;padding:14px;margin-bottom:10px}
+.ai-rec{background:#0a1a0a;border:1px solid #3fb95033;border-radius:7px;padding:14px;margin-bottom:10px}
+.ai-actions{background:#161b22;border:1px solid #21262d;border-radius:7px;padding:14px;margin-bottom:10px}
+.tado-apply{background:#0a1520;border:1px solid #3fb95033;border-radius:7px;padding:14px;margin-bottom:10px}
+.tado-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #21262d}
+.tado-row:last-child{border-bottom:none}
+.frow{display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.note{padding:10px;background:#0c1020;border:1px solid #21262d;border-radius:7px;font-size:10px;color:#6e7681;line-height:1.7;margin-top:10px}
+.empty{background:#161b22;border:1px solid #21262d;border-radius:7px;padding:32px;text-align:center;color:#6b7280}
+.troom{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px;margin-bottom:8px}
+.troom-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.troom-name{font-size:12px;font-weight:600;color:#e6edf3}
+.troom-fields{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.addbox{background:#0a1520;border:1px solid #1f6feb33;border-radius:7px;padding:14px;margin-top:4px}
+.tariff-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:7px;margin-bottom:10px}
+.tariff-hc{background:#0a1a0a;border:1px solid #3fb95033}
+.tariff-hp{background:#1a0a0a;border:1px solid #f8514933}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">♨</div>
+  <div>
+    <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.3</div>
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+    <span class="dot" id="dot" style="background:#3fb950"></span>
+    <span style="font-size:10px;color:#6b7280" id="status">—</span>
+    <span class="dot" id="save-dot" style="background:#6b7280" title="Config non sauvegardée"></span>
+    <button style="background:none;border:1px solid #30363d;color:#8b949e;border-radius:5px;padding:4px 9px;font-size:11px" onclick="appRefresh()">⟳</button>
+  </div>
+</div>
+<div class="tabs">
+  <button class="tab active" id="tb-dashboard" onclick="showTab('dashboard')">◈ Dashboard</button>
+  <button class="tab" id="tb-ai" onclick="showTab('ai')">◉ IA</button>
+  <button class="tab" id="tb-functional" onclick="showTab('functional')">◧ Paramètres</button>
+  <button class="tab" id="tb-system" onclick="showTab('system')">◌ Système</button>
+</div>
+<div class="content">
+  <div id="p-dashboard"></div>
+  <div id="p-ai" style="display:none"></div>
+  <div id="p-functional" style="display:none"></div>
+  <div id="p-system" style="display:none"></div>
+</div>
+<script>
+var GEMINI_API_KEY = '__GEMINI_API_KEY__';
+var SK = 'pac-mgr';
+
+(function migrate() {
+  if (localStorage.getItem(SK)) return;
+  var old = ['pac-mgr-v5','pac-mgr-v4','pac-mgr-v3','pac-mgr-v2'];
+  for (var i=0; i<old.length; i++) {
+    var v = localStorage.getItem(old[i]);
+    if (v) { localStorage.setItem(SK, v); localStorage.removeItem(old[i]); return; }
+  }
+})();
+
+var DEF = {
+  system: {haUrl:'http://homeassistant.local:8123', haToken:'', lat:45.75, lon:4.85, refreshMin:5},
+  functional: {loiEauA:43.0, loiEauB:-1.1, tBalance:16.0, consigneJour:18, consigneNuit:18, heureNuit:'21:30', heureJour:'05:30', consigneECS:50, hystECS:5},
+  tariff: {debutHC:'22:30', finHC:'06:30', prixHP:0.25, prixHC:0.17},
+  thermal: {G:150, tau:8, surface:210},
+  entities: {tExt:'', tEauDep:'', copInst:'', puissElec:'', puissTherm:''},
+  rooms: []
+};
+
+function parseCfg(s) {
+  if (!s) return JSON.parse(JSON.stringify(DEF));
+  return {
+    system: Object.assign({}, DEF.system, s.system),
+    functional: Object.assign({}, DEF.functional, s.functional),
+    tariff: Object.assign({}, DEF.tariff, s.tariff),
+    thermal: Object.assign({}, DEF.thermal, s.thermal),
+    entities: Object.assign({}, DEF.entities, s.entities),
+    rooms: s.rooms || []
+  };
+}
+
+function loadCfg() {
+  try {
+    var s = JSON.parse(localStorage.getItem(SK));
+    if (!s) return JSON.parse(JSON.stringify(DEF));
+    return parseCfg(s);
+  } catch(e) { return JSON.parse(JSON.stringify(DEF)); }
+}
+
+var cfg = loadCfg();
+var haData = {}, weather = null, lastUpd = null, aiResult = null, currentTab = 'dashboard';
+
+// Charger la config depuis le serveur (prioritaire sur localStorage)
+fetch('/pac-config')
+  .then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(serverCfg){
+    if (!serverCfg || Object.keys(serverCfg).length === 0) return;
+    cfg = parseCfg(serverCfg);
+    // Synchroniser localStorage avec la config serveur
+    try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {}
+    setStatus('#3fb950', 'Config chargée');
+    renderCurrent();
+  })
+  .catch(function(){
+    // Fallback silencieux sur localStorage déjà chargé
+  });
+
+function save() {
+  try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {}
+  // Persister sur le serveur (survit au changement de navigateur/ordinateur)
+  fetch('/pac-config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(cfg)
+  }).then(function(r){
+    if(r.ok){ var d=document.getElementById('save-dot'); if(d){d.style.background='#3fb950';d.title='Config sauvegardée';} }
+  }).catch(function(){ var d=document.getElementById('save-dot'); if(d){d.style.background='#f85149';d.title='Erreur sauvegarde';} });
+}
+function tEauCalc(t) { return Math.max(25, Math.min(55, cfg.functional.loiEauA + cfg.functional.loiEauB * t)); }
+function fmt(v, d) { d = d === undefined ? 1 : d; return v != null ? parseFloat(v).toFixed(d) : '—'; }
+
+function isNight() {
+  var n = new Date(), cur = n.getHours()*60 + n.getMinutes();
+  var ni = parseInt(cfg.functional.heureNuit.split(':')[0])*60 + parseInt(cfg.functional.heureNuit.split(':')[1]);
+  var di = parseInt(cfg.functional.heureJour.split(':')[0])*60 + parseInt(cfg.functional.heureJour.split(':')[1]);
+  return ni > di ? (cur >= ni || cur < di) : (cur >= ni && cur < di);
+}
+
+function isHC() {
+  var n = new Date(), cur = n.getHours()*60 + n.getMinutes();
+  var hcs = parseInt(cfg.tariff.debutHC.split(':')[0])*60 + parseInt(cfg.tariff.debutHC.split(':')[1]);
+  var hce = parseInt(cfg.tariff.finHC.split(':')[0])*60 + parseInt(cfg.tariff.finHC.split(':')[1]);
+  // HC est nocturne : commence le soir, finit le matin
+  return hcs > hce ? (cur >= hcs || cur < hce) : (cur >= hcs && cur < hce);
+}
+
+function minutesJusquauChangementTarif() {
+  var n = new Date(), cur = n.getHours()*60 + n.getMinutes();
+  var hcs = parseInt(cfg.tariff.debutHC.split(':')[0])*60 + parseInt(cfg.tariff.debutHC.split(':')[1]);
+  var hce = parseInt(cfg.tariff.finHC.split(':')[0])*60 + parseInt(cfg.tariff.finHC.split(':')[1]);
+  var nextSwitch;
+  if (isHC()) {
+    // On est en HC, prochain switch = fin HC
+    nextSwitch = hce > cur ? hce - cur : 1440 - cur + hce;
+  } else {
+    // On est en HP, prochain switch = debut HC
+    nextSwitch = hcs > cur ? hcs - cur : 1440 - cur + hcs;
+  }
+  return nextSwitch;
+}
+
+function prixActuel() { return isHC() ? cfg.tariff.prixHC : cfg.tariff.prixHP; }
+
+function detectModePAC(teau_actuelle, puissance_w) {
+  var en_marche = puissance_w !== null && puissance_w > 70;
+  if (!en_marche) return 'ARRETEE_OU_VEILLE';
+  if (teau_actuelle !== null && teau_actuelle > 45) return 'ECS';
+  return 'CHAUFFAGE';
+}
+
+function haGet(id) {
+  return fetch(cfg.system.haUrl + '/api/states/' + id, {
+    headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'}
+  }).then(function(r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+}
+
+function haSetTemp(entityId, temp) {
+  return fetch(cfg.system.haUrl + '/api/services/climate/set_temperature', {
+    method: 'POST',
+    headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'},
+    body: JSON.stringify({entity_id: entityId, temperature: temp})
+  }).then(function(r) { if (!r.ok) throw new Error('HA ' + r.status); return r; });
+}
+
+function setStatus(col, txt) {
+  var d = document.getElementById('dot'), s = document.getElementById('status');
+  if (d) d.style.background = col;
+  if (s) s.textContent = txt;
+}
+function mk(tag, cls, html) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+
+function appRefresh() {
+  setStatus('#d29922', 'Actualisation…');
+  fetch('https://api.open-meteo.com/v1/forecast?latitude='+cfg.system.lat+'&longitude='+cfg.system.lon+'&current_weather=true&hourly=temperature_2m,cloud_cover&forecast_days=2&timezone=Europe%2FParis')
+    .then(function(r){ return r.json(); }).then(function(d){ weather=d; }).catch(function(){ weather=null; })
+    .then(function() {
+      if (!cfg.system.haToken) { lastUpd=new Date(); setStatus('#3fb950',lastUpd.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})); renderCurrent(); return; }
+      var ids = Object.values(cfg.entities).concat(cfg.rooms.reduce(function(a,r){ return a.concat([r.entityTemp,r.entitySetpoint]); },[])).filter(Boolean);
+      return Promise.all(ids.map(function(id){ return haGet(id).then(function(d){ haData[id]=d; }).catch(function(){}); }));
+    })
+    .then(function() { lastUpd=new Date(); setStatus('#3fb950',lastUpd.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})); renderCurrent(); });
+}
+
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  var btn = document.getElementById('tb-'+id); if (btn) btn.classList.add('active');
+  ['dashboard','ai','functional','system'].forEach(function(t){
+    var p = document.getElementById('p-'+t); if (p) p.style.display = t===id?'block':'none';
+  });
+  currentTab = id; renderCurrent();
+}
+function renderCurrent() {
+  if (currentTab==='dashboard') renderDashboard();
+  else if (currentTab==='ai') renderAI();
+  else if (currentTab==='functional') renderFunctional();
+  else if (currentTab==='system') renderSystem();
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  var div = document.getElementById('p-dashboard'); if (!div) return; div.innerHTML='';
+  var temp_ext = cfg.entities.tExt&&haData[cfg.entities.tExt] ? parseFloat(haData[cfg.entities.tExt].state) : (weather&&weather.current_weather?weather.current_weather.temperature:null);
+  var teau_calc = temp_ext!==null ? tEauCalc(temp_ext) : null;
+  var teau_act = cfg.entities.tEauDep&&haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
+  var cop = cfg.entities.copInst&&haData[cfg.entities.copInst] ? parseFloat(haData[cfg.entities.copInst].state) : null;
+  var pw = cfg.entities.puissElec&&haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state) : null;
+  var pt = cfg.entities.puissTherm&&haData[cfg.entities.puissTherm] ? parseFloat(haData[cfg.entities.puissTherm].state) : null;
+  var mode_pac = detectModePAC(teau_act, pw);
+  var pac_color = mode_pac==='CHAUFFAGE'?'#3fb950':mode_pac==='ECS'?'#f59e0b':'#6b7280';
+  var hc = isHC();
+  var mins = minutesJusquauChangementTarif();
+  var heures_restantes = Math.floor(mins/60), min_restantes = mins%60;
+  var tarif_str = (hc?'HC':'HP') + ' — change dans ' + heures_restantes + 'h' + (min_restantes>0?min_restantes+'min':'');
+
+  // Bandeau tarif
+  var tb = mk('div', hc?'tariff-bar tariff-hc':'tariff-bar tariff-hp');
+  tb.innerHTML = '<span class="badge '+(hc?'badge-hc':'badge-hp')+'">'+(hc?'Heures Creuses':'Heures Pleines')+'</span>'
+    + '<span style="font-size:11px;color:#8b949e">' + tarif_str + '</span>'
+    + '<span style="margin-left:auto;font-size:11px;font-weight:600;color:'+(hc?'#3fb950':'#f85149')+'">' + prixActuel().toFixed(2) + ' €/kWh</span>';
+  div.append(tb);
+
+  // Coût estimé si PAC en marche
+  if (pw && pw > 70) {
+    var cout_h = (pw/1000) * prixActuel();
+    var ci = mk('div'); ci.style.cssText='font-size:10px;color:#6b7280;margin-bottom:12px;text-align:right';
+    ci.textContent = 'Coût estimé : ' + (cout_h).toFixed(3) + ' €/h · ' + (cout_h*24).toFixed(2) + ' €/jour si continu';
+    div.append(ci);
+  }
+
+  var mg = mk('div','g-auto');
+  [
+    ['T° extérieure', temp_ext!==null?fmt(temp_ext):null, '°C', cfg.entities.tExt&&haData[cfg.entities.tExt]?'Capteur HA':'Open-Meteo', '#58a6ff'],
+    ['T° eau actuelle', teau_act!==null?fmt(teau_act):null, '°C', teau_act?(teau_act>45?'Mode ECS':'Chauffage'):'Non configuré', '#f59e0b'],
+    ['T° eau cible', teau_calc!==null?fmt(teau_calc):null, '°C', 'Loi d\'eau', '#d29922'],
+    ['COP', cop!==null?fmt(cop,2):null, '', cop?(cop>4?'Excellent':cop>3?'Bon':'Moyen'):'', '#3fb950'],
+    ['Puissance', pw!==null?String(Math.round(pw)):null, 'W', pw===null?'Non configuré':pw<70?'En veille':'En marche', '#f85149'],
+    ['Puiss. thermique', pt!==null?String(Math.round(pt)):null, 'W', pt&&pw&&pw>0?'COP='+((pt/pw).toFixed(1)):'', '#a78bfa'],
+    ['Mode PAC', mode_pac==='ARRETEE_OU_VEILLE'?'Veille':mode_pac==='CHAUFFAGE'?'Chauffe':'ECS', '', (isNight()?'Nuit ':'Jour ')+cfg.functional[isNight()?'consigneNuit':'consigneJour']+'°C', pac_color]
+  ].forEach(function(x){
+    var c=mk('div','metric'); c.style.borderLeft='3px solid '+x[4];
+    c.innerHTML='<div class="lbl">'+x[0]+'</div><div class="mval">'+(x[1]||'—')+(x[2]?'<span style="font-size:12px;color:#6b7280;margin-left:2px">'+x[2]+'</span>':'')+'</div>'+(x[3]?'<div style="font-size:10px;color:#6b7280;margin-top:3px">'+x[3]+'</div>':'');
+    mg.append(c);
+  });
+  div.append(mg);
+
+  // ── Bilan thermique en temps réel ────────────────────────────────────────
+  (function() {
+    var surfTotale = cfg.rooms.reduce(function(s,r){ return s+(r.surface||0); }, 0);
+    var tIntMoy = null;
+    if (cfg.rooms.length > 0) {
+      if (surfTotale > 0) {
+        // Moyenne pondérée par surface
+        var somme = cfg.rooms.reduce(function(s,r){
+          var t = haData[r.entityTemp] ? parseFloat(haData[r.entityTemp].state) : null;
+          return t !== null ? s + t*(r.surface||0) : s;
+        }, 0);
+        var surfAvecDonnees = cfg.rooms.reduce(function(s,r){
+          var t = haData[r.entityTemp] ? parseFloat(haData[r.entityTemp].state) : null;
+          return t !== null ? s+(r.surface||0) : s;
+        }, 0);
+        if (surfAvecDonnees > 0) tIntMoy = somme / surfAvecDonnees;
+      } else {
+        // Moyenne simple si pas de surfaces renseignées
+        var vals = cfg.rooms.filter(function(r){ return haData[r.entityTemp]; })
+          .map(function(r){ return parseFloat(haData[r.entityTemp].state); });
+        if (vals.length > 0) tIntMoy = vals.reduce(function(a,b){return a+b;},0)/vals.length;
+      }
+    }
+    if (tIntMoy !== null && temp_ext !== null && cfg.thermal.G > 0) {
+      var pertes = cfg.thermal.G * (tIntMoy - temp_ext);
+      var prod = pt; // puissance thermique PAC
+      var bilan = prod !== null && mode_pac === 'CHAUFFAGE' ? prod - pertes : null;
+      var bs = mk('div','section');
+      bs.style.cssText = 'margin-bottom:14px;background:#161b22;border:1px solid #21262d;border-radius:7px;padding:14px';
+      var bilanCol = bilan === null ? '#6b7280' : bilan > 200 ? '#3fb950' : bilan < -200 ? '#f85149' : '#d29922';
+      var bilanTxt = bilan === null ? (mode_pac==='ECS'?'PAC en mode ECS':'PAC à l'arrêt') :
+        bilan > 200 ? 'Maison se réchauffe (+'+Math.round(bilan)+'W)' :
+        bilan < -200 ? 'Maison se refroidit ('+Math.round(bilan)+'W)' :
+        'Équilibre thermique (±'+Math.round(Math.abs(bilan))+'W)';
+      var methode = surfTotale > 0 ? 'pondérée par surface' : 'moyenne simple';
+      bs.innerHTML = '<div class="stitle" style="margin-bottom:10px">Bilan thermique temps réel</div>'
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">'
+        +'<div class="metric" style="border-left:3px solid #58a6ff">'
+          +'<div class="lbl">T° int. moy. ('+methode+')</div>'
+          +'<div class="mval">'+tIntMoy.toFixed(1)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">°C</span></div>'
+          +(surfTotale>0?'<div style="font-size:10px;color:#6b7280;margin-top:3px">'+surfTotale.toFixed(0)+'m² couverts</div>':'')
+        +'</div>'
+        +'<div class="metric" style="border-left:3px solid #f85149">'
+          +'<div class="lbl">Pertes estimées</div>'
+          +'<div class="mval">'+Math.round(pertes)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">W</span></div>'
+          +'<div style="font-size:10px;color:#6b7280;margin-top:3px">G='+cfg.thermal.G+'W/°C × ΔT='+(tIntMoy-temp_ext).toFixed(1)+'°C</div>'
+        +'</div>'
+        +(prod!==null&&mode_pac==='CHAUFFAGE'?
+          '<div class="metric" style="border-left:3px solid #a78bfa">'
+            +'<div class="lbl">Production PAC</div>'
+            +'<div class="mval">'+Math.round(prod)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">W</span></div>'
+            +'<div style="font-size:10px;color:#6b7280;margin-top:3px">Mode chauffage</div>'
+          +'</div>'
+        :'')
+        +'<div class="metric" style="border-left:3px solid '+bilanCol+'">'
+          +'<div class="lbl">Bilan</div>'
+          +'<div class="mval" style="font-size:14px;color:'+bilanCol+'">'+bilanTxt+'</div>'
+        +'</div>'
+        +'</div>';
+      div.append(bs);
+    }
+  })();
+
+  if (cfg.rooms.length>0) {
+    var etages={};
+    cfg.rooms.forEach(function(r){var e=r.etage||'Non defini';if(!etages[e])etages[e]=[];etages[e].push(r);});
+    var eKeys=Object.keys(etages).sort(function(a,b){if(a==='Non defini')return 1;if(b==='Non defini')return -1;return a.localeCompare(b);});
+    eKeys.forEach(function(etage){
+      var rh=mk('div'); rh.style.marginBottom='14px';
+      var label=etage==='Non defini'?'Pièces Tado':etage;
+      rh.innerHTML='<div style="font-size:11px;font-weight:600;color:#e6edf3;margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em">'+label+'</div>';
+      var rg=mk('div','g-rooms');
+      etages[etage].forEach(function(r){
+        var t=haData[r.entityTemp]?haData[r.entityTemp].state:null;
+        var sp=haData[r.entitySetpoint]?(haData[r.entitySetpoint].attributes&&haData[r.entitySetpoint].attributes.temperature?haData[r.entitySetpoint].attributes.temperature:haData[r.entitySetpoint].state):null;
+        var d=t&&sp?parseFloat(t)-parseFloat(sp):null;
+        var col=d===null?'#6b7280':d>=0?'#3fb950':d<-1.5?'#f85149':'#d29922';
+        var c=mk('div','rcard'); c.style.borderTopColor=col;
+        c.innerHTML='<div style="font-size:11px;color:#8b949e;margin-bottom:5px;font-weight:500">'+r.name+'</div>'
+          +'<div style="display:flex;align-items:baseline;gap:5px"><span style="font-size:20px;font-weight:700;font-family:monospace;color:#e6edf3">'+(t?fmt(t)+'°':'—')+'</span>'+(sp?'<span style="font-size:11px;color:#6b7280">/ '+fmt(sp,0)+'°C</span>':'')+'</div>'
+          +(d!==null?'<div style="font-size:10px;color:'+col+';margin-top:2px">'+(d>=0?'+':'')+d.toFixed(1)+'°C vs consigne</div>':'');
+        rg.append(c);
+      });
+      rh.append(rg); div.append(rh);
+    });
+  } else {
+    div.append(mk('div','info','💡 Aucune pièce Tado — ajoutez-en dans l\'onglet Système.'));
+  }
+
+  if (weather&&weather.hourly) {
+    var now=new Date(),h=weather.hourly;
+    var fc=h.time.map(function(t,i){return {time:t,temp:h.temperature_2m[i],cloud:h.cloud_cover[i]};})
+      .filter(function(p){var d=new Date(p.time);return d>=now&&d<=new Date(now.getTime()+24*3600000);})
+      .filter(function(_,i){return i%2===0;}).slice(0,8);
+    if (fc.length) {
+      var fs=mk('div','section','<div class="stitle">Prévisions 24h</div>');
+      var bar=mk('div','fc-bar');
+      fc.forEach(function(p){
+        var tv=tEauCalc(p.temp),off=p.temp>=cfg.functional.tBalance;
+        var col=p.temp<5?'#58a6ff':p.temp>15?'#3fb950':'#c9d1d9';
+        // Détecter si HC à cette heure
+        var ph = parseInt(p.time.slice(11,13));
+        var pm = parseInt(p.time.slice(14,16));
+        var pcur = ph*60+pm;
+        var hcs = parseInt(cfg.tariff.debutHC.split(':')[0])*60+parseInt(cfg.tariff.debutHC.split(':')[1]);
+        var hce = parseInt(cfg.tariff.finHC.split(':')[0])*60+parseInt(cfg.tariff.finHC.split(':')[1]);
+        var phc = hcs>hce?(pcur>=hcs||pcur<hce):(pcur>=hcs&&pcur<hce);
+        var cell=mk('div','fc-cell'); cell.style.borderColor=phc?'#3fb95044':'#21262d';
+        cell.innerHTML='<div style="font-size:10px;color:'+(phc?'#3fb950':'#6b7280')+';margin-bottom:3px">'+p.time.slice(11,16)+(phc?' HC':'')+'</div>'
+          +'<div style="font-size:14px;font-weight:700;font-family:monospace;color:'+col+'">'+p.temp.toFixed(0)+'°</div>'
+          +'<div style="font-size:9px;color:'+(off?'#6b7280':'#f59e0b')+';margin-top:2px">'+(off?'off':tv.toFixed(0)+'°eau')+'</div>'
+          +'<div style="font-size:9px;color:#4b5563;margin-top:1px">'+p.cloud+'%☁</div>';
+        bar.append(cell);
+      });
+      fs.append(bar); div.append(fs);
+    }
+  }
+  if (!cfg.system.haToken) div.append(mk('div','warn','⚠ Token HA non configuré — onglet Système.'));
+  if (lastUpd){var ts=mk('div');ts.style.cssText='margin-top:10px;font-size:10px;color:#4b5563;text-align:right';ts.textContent='Mis à jour '+lastUpd.toLocaleTimeString('fr-FR');div.append(ts);}
+}
+
+// ── AI ─────────────────────────────────────────────────────────────────────────
+function renderAI() {
+  var div=document.getElementById('p-ai'); if(!div) return; div.innerHTML='';
+  var apiOk=GEMINI_API_KEY&&GEMINI_API_KEY.length>10&&GEMINI_API_KEY.indexOf('__GEMINI')===-1;
+  var hdr=mk('div'); hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px';
+  hdr.innerHTML='<div><div style="font-size:14px;font-weight:600;color:#e6edf3">Conseiller IA <span style="font-size:10px;color:#6b7280;font-weight:400">Gemini 2.5 Flash</span></div><div style="font-size:11px;color:#8b949e;margin-top:2px">Optimisation confort + tarif</div></div>';
+  var btn=mk('button','btn'); btn.textContent='▶ Analyser'; btn.onclick=runAI; hdr.append(btn); div.append(hdr);
+  if (!apiOk) { div.append(mk('div','errbox','⚠ Clé Gemini non configurée — onglet Système → Add-ons → PAC Manager → gemini_api_key')); return; }
+  div.append(mk('div','ok','✓ Gemini 2.5 Flash actif ('+GEMINI_API_KEY.length+' car.)'));
+  if (!aiResult){div.append(mk('div','empty','<div style="font-size:28px;margin-bottom:10px">🤖</div><div>Cliquez sur Analyser.</div>'));return;}
+  if (aiResult.error){div.append(mk('div','errbox',aiResult.error));return;}
+  var PC={'Excellent':'#3fb950','Bon':'#58a6ff','Moyen':'#d29922','A ameliorer':'#f85149'};
+  var ac=PC[aiResult.performance]||'#6b7280';
+  var card=mk('div','ai-card'); card.style.borderLeft='4px solid '+ac;
+  card.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:'+(aiResult.analyse?'10':'0')+'px">'
+    +'<span class="badge" style="background:'+ac+'22;color:'+ac+';border:1px solid '+ac+'44">'+(aiResult.performance||'')+'</span>'
+    +'<span style="font-size:10px;color:#4b5563">'+(aiResult.ts?aiResult.ts.toLocaleTimeString('fr-FR'):'')+'</span>'
+    +'</div>'
+    +(aiResult.analyse?'<p style="margin:0;font-size:12px;line-height:1.6;color:#c9d1d9">'+aiResult.analyse+'</p>':'');
+  div.append(card);
+
+  // T° eau recommandée
+  if (aiResult.teau_recommandee && aiResult.teau_recommandee >= 25 && aiResult.teau_recommandee <= 55) {
+    var teau_act=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
+    var rec=mk('div','ai-rec');
+    rec.innerHTML='<div class="lbl">T° eau départ recommandée <span style="font-size:9px;color:#6b7280">(à pousser vers la PAC via CAN bus)</span></div>'
+      +'<div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 4px">'
+      +'<span style="font-size:28px;font-weight:700;font-family:monospace;color:#3fb950">'+parseFloat(aiResult.teau_recommandee).toFixed(1)+'°C</span>'
+      +(teau_act?'<span style="font-size:12px;color:#6b7280">actuel: '+fmt(teau_act)+'°C</span>':'')
+      +'</div>'
+      +(aiResult.raison_teau?'<div style="font-size:11px;color:#8b949e">'+aiResult.raison_teau+'</div>':'');
+    div.append(rec);
+  }
+
+  // Actions
+  if (aiResult.actions&&aiResult.actions.length) {
+    var ac2=mk('div','ai-actions','<div class="stitle">Actions recommandées</div>');
+    aiResult.actions.forEach(function(a){
+      var row=mk('div');row.style.cssText='display:flex;gap:6px;margin-bottom:6px;font-size:12px;color:#c9d1d9;line-height:1.5';
+      row.innerHTML='<span style="color:#58a6ff;flex-shrink:0">→</span>'+a; ac2.append(row);
+    });
+    div.append(ac2);
+  }
+
+  // Consignes Tado recommandées
+  if (aiResult.consignes_tado && aiResult.consignes_tado.length && cfg.system.haToken) {
+    var ta=mk('div','tado-apply');
+    ta.innerHTML='<div class="stitle">Consignes Tado recommandées</div>';
+    aiResult.consignes_tado.forEach(function(c){
+      var row=mk('div','tado-row');
+      row.innerHTML='<div>'
+        +'<span style="font-size:12px;color:#e6edf3;font-weight:500">'+c.nom+'</span>'
+        +'<span style="font-size:11px;color:#6b7280;margin-left:8px">→ '+c.consigne+'°C</span>'
+        +'</div>'
+        +'<div style="font-size:10px;color:#8b949e;max-width:200px;text-align:right">'+c.raison+'</div>';
+      ta.append(row);
+    });
+    var applyBtn=mk('button','btn-green');
+    applyBtn.style.cssText='margin-top:12px;width:100%';
+    applyBtn.textContent='✓ Appliquer ces consignes aux Tado';
+    applyBtn.onclick=function(){ applyTadoConsignes(applyBtn); };
+    ta.append(applyBtn);
+    div.append(ta);
+  }
+
+  // Alertes
+  if (aiResult.alertes&&aiResult.alertes.length) {
+    var al=mk('div','section');al.style.cssText='background:#1a1500;border-color:#d2992233';
+    aiResult.alertes.forEach(function(a){al.append(mk('div',null,'<span style="font-size:12px;color:#d29922">⚠ '+a+'</span>'));});
+    div.append(al);
+  }
+}
+
+function applyTadoConsignes(btn) {
+  if (!aiResult || !aiResult.consignes_tado) return;
+  btn.disabled = true; btn.textContent = '⟳ Application…';
+  var promises = aiResult.consignes_tado.map(function(c) {
+    var room = cfg.rooms.find(function(r){ return r.name === c.nom; });
+    if (!room || !room.entitySetpoint) return Promise.resolve();
+    return haSetTemp(room.entitySetpoint, c.consigne)
+      .catch(function(e){ console.warn('Tado error for '+c.nom+': '+e.message); });
+  });
+  Promise.all(promises).then(function() {
+    btn.textContent = '✓ Consignes appliquées';
+    btn.style.background = '#3fb95033';
+    setTimeout(function(){ appRefresh(); }, 2000);
+  });
+}
+
+function runAI() {
+  var apiOk=GEMINI_API_KEY&&GEMINI_API_KEY.length>10&&GEMINI_API_KEY.indexOf('__GEMINI')===-1;
+  if (!apiOk){alert('Clé API Gemini non configurée.');return;}
+  var btn=document.querySelector('#p-ai .btn');
+  if (btn){btn.disabled=true;btn.textContent='⟳ Analyse…';}
+
+  var temp_ext=cfg.entities.tExt&&haData[cfg.entities.tExt]?parseFloat(haData[cfg.entities.tExt].state):(weather&&weather.current_weather?weather.current_weather.temperature:null);
+  var teau_calc=temp_ext!==null?tEauCalc(temp_ext):null;
+  var teau_act=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
+  var cop_act=cfg.entities.copInst&&haData[cfg.entities.copInst]?parseFloat(haData[cfg.entities.copInst].state):null;
+  var pw=cfg.entities.puissElec&&haData[cfg.entities.puissElec]?parseFloat(haData[cfg.entities.puissElec].state):null;
+  var mode_pac=detectModePAC(teau_act,pw);
+  var hc=isHC();
+  var mins_switch=minutesJusquauChangementTarif();
+
+  var pieces_ctx=cfg.rooms.map(function(r){
+    var t=haData[r.entityTemp]?haData[r.entityTemp].state:'?';
+    var sp=haData[r.entitySetpoint]?(haData[r.entitySetpoint].attributes&&haData[r.entitySetpoint].attributes.temperature?haData[r.entitySetpoint].attributes.temperature:cfg.functional.consigneJour):cfg.functional.consigneJour;
+    return r.name+': '+t+'C (consigne '+sp+'C)';
+  }).join(', ')||'aucune';
+
+  var now=new Date();
+  var mois=['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'][now.getMonth()];
+
+  var tendance='stable';
+  if (weather&&weather.hourly&&weather.hourly.temperature_2m.length>6) {
+    var t0=weather.hourly.temperature_2m[0], t6=weather.hourly.temperature_2m[6];
+    if (t6-t0>2) tendance='en hausse (+'+( t6-t0).toFixed(1)+'C dans 6h)';
+    else if (t0-t6>2) tendance='en baisse (-'+(t0-t6).toFixed(1)+'C dans 6h)';
+  }
+
+  var ecart_str='inconnu';
+  if (teau_act&&teau_calc) {
+    var ec=(teau_act-teau_calc).toFixed(1);
+    ecart_str=ec>0?'eau trop chaude de +'+ec+'C':'eau trop froide de '+ec+'C';
+  }
+
+  var meteo_24h='indisponible';
+  if (weather&&weather.hourly) {
+    var h=weather.hourly;
+    var fc=h.time.map(function(t,i){return {time:t,temp:h.temperature_2m[i]};})
+      .filter(function(p){var d=new Date(p.time);return d>=now&&d<=new Date(now.getTime()+24*3600000);})
+      .filter(function(_,i){return i%3===0;}).slice(0,8);
+    if (fc.length) meteo_24h=fc.map(function(p){return p.time.slice(11,16)+':'+p.temp+'C';}).join(' ');
+  }
+
+  // Prévision tarif sur 24h
+  var tarif_24h = [];
+  for (var i=0; i<24; i++) {
+    var ph = (now.getHours()+i)%24;
+    var pcur2 = ph*60;
+    var hcs2=parseInt(cfg.tariff.debutHC.split(':')[0])*60+parseInt(cfg.tariff.debutHC.split(':')[1]);
+    var hce2=parseInt(cfg.tariff.finHC.split(':')[0])*60+parseInt(cfg.tariff.finHC.split(':')[1]);
+    var phc2=hcs2>hce2?(pcur2>=hcs2||pcur2<hce2):(pcur2>=hcs2&&pcur2<hce2);
+    if (i===0||tarif_24h[tarif_24h.length-1].tarif!==(phc2?'HC':'HP')) {
+      tarif_24h.push({heure:ph+'h',tarif:phc2?'HC':'HP',prix:phc2?cfg.tariff.prixHC:cfg.tariff.prixHP});
+    }
+  }
+  var tarif_str=tarif_24h.map(function(t){return t.heure+':'+t.tarif+'('+t.prix+'eur/kWh)';}).join(' ');
+
+  // Noms des pièces pour le schema
+  var noms_pieces=cfg.rooms.map(function(r){return r.name;});
+
+  var prompt='Tu es expert en pompes a chaleur residentielles et optimisation energetique.\n\n'
+    +'INSTALLATION:\n'
+    +'- Maison 210m2, radiateurs fonte haute inertie, monozone\n'
+    +'- PAC Viessmann Vitocal 150-A air/eau\n'
+    +'- Coefficient de deperdition G='+cfg.thermal.G+'W/C, inertie thermique tau='+cfg.thermal.tau+'h\n'
+    +'- Saison: '+mois+'\n\n'
+    +'ETAT:\n'
+    +'- temp_ext: '+temp_ext+'C (source: '+(cfg.entities.tExt&&haData[cfg.entities.tExt]?'capteur HA':'meteo')+', tendance: '+tendance+')\n'
+    +(function(){
+      var surfTot=cfg.rooms.reduce(function(s,r){return s+(r.surface||0);},0);
+      var tInt=null;
+      if(cfg.rooms.length>0){
+        if(surfTot>0){var som=cfg.rooms.reduce(function(s,r){var t=haData[r.entityTemp]?parseFloat(haData[r.entityTemp].state):null;return t!==null?s+t*(r.surface||0):s;},0);var sd=cfg.rooms.reduce(function(s,r){var t=haData[r.entityTemp]?parseFloat(haData[r.entityTemp].state):null;return t!==null?s+(r.surface||0):s;},0);if(sd>0)tInt=som/sd;}
+        else{var v=cfg.rooms.filter(function(r){return haData[r.entityTemp];}).map(function(r){return parseFloat(haData[r.entityTemp].state);});if(v.length)tInt=v.reduce(function(a,b){return a+b;},0)/v.length;}
+      }
+      var pertes=tInt!==null&&temp_ext!==null?cfg.thermal.G*(tInt-temp_ext):null;
+      var prod=pw&&pw>70?pt:null;
+      return '- temp_interieure_moyenne_ponderee: '+(tInt!==null?tInt.toFixed(1)+'C':'inconnue')+'\n'
+        +'- pertes_thermiques_estimees: '+(pertes!==null?Math.round(pertes)+'W (G='+cfg.thermal.G+'W/C x DeltaT='+(tInt-temp_ext).toFixed(1)+'C)':'inconnues')+'\n'
+        +'- production_thermique_pac: '+(prod!==null?Math.round(prod)+'W':'inconnue ou PAC arretee')+'\n'
+        +'- bilan_thermique: '+(pertes!==null&&prod!==null?Math.round(prod-pertes)+'W ('+(prod-pertes>200?'maison se rechauffe':prod-pertes<-200?'maison se refroidit':'equilibre')+')':'inconnu')+'\n';
+    })()
+    +'- teau_actuelle: '+teau_act+'C | teau_loi_eau: '+(teau_calc?teau_calc.toFixed(1):null)+'C | ecart: '+ecart_str+'\n'
+    +'- mode_pac: '+mode_pac+' (seuil arret: '+cfg.functional.tBalance+'C, temp_ext='+temp_ext+'C donc PAC '+(temp_ext!==null&&temp_ext>cfg.functional.tBalance?'devrait etre arretee':'peut chauffer')+')\n'
+    +'- puissance: '+(pw!==null?Math.round(pw)+'W':'inconnue')+' | COP: '+(cop_act&&!isNaN(cop_act)&&cop_act>0&&pw>70?cop_act:'non valide')+'\n'
+    +'- mode_horaire: '+(isNight()?'NUIT':'JOUR')+'\n'
+    +'- pieces: '+pieces_ctx+'\n\n'
+    +'TARIFICATION:\n'
+    +'- tarif_actuel: '+(hc?'HC':'HP')+' a '+prixActuel().toFixed(2)+'eur/kWh\n'
+    +'- changement_tarif_dans: '+Math.floor(mins_switch/60)+'h'+(mins_switch%60)+'min -> passage en '+(hc?'HP':'HC')+'\n'
+    +'- prevision_tarifs_24h: '+tarif_str+'\n'
+    +'- prix_HP: '+cfg.tariff.prixHP+'eur/kWh | prix_HC: '+cfg.tariff.prixHC+'eur/kWh\n\n'
+    +'LOI EAU:\n'
+    +'- Teau='+cfg.functional.loiEauA+'+('+cfg.functional.loiEauB+'xText) | equilibre='+cfg.functional.tBalance+'C\n'
+    +'- consigne_jour='+cfg.functional.consigneJour+'C | consigne_nuit='+cfg.functional.consigneNuit+'C\n\n'
+    +'METEO 24H: '+meteo_24h+'\n\n'
+    +'REGLES:\n'
+    +'- teau_recommandee entre 25 et 55C UNIQUEMENT pour circuit chauffage (pas temp exterieure)\n'
+    +'- Si mode ECS: signaler, ne pas changer consignes chauffage\n'
+    +'- Exploiter HC pour prechauffer si froid prevu: inertie fonte='+cfg.thermal.tau+'h, anticiper en consequence\n'
+    +'- Si passage HC dans moins de '+cfg.thermal.tau+'h et froid prevu: suggerer prechauffage maintenant\n'
+    +'- Si HC actuel: peut monter consignes Tado de +0.5 a +1C pour stocker chaleur pas chere\n'
+    +'- Si HP et pieces a consigne: peut baisser consignes de -0.5C pour economiser\n'
+    +'- Consignes Tado: utiliser uniquement les pieces configurees: '+noms_pieces.join(', ')+'\n\n'
+    +'Reponds JSON (une phrase par champ texte, consignes_tado uniquement si pertinent):\n'
+    +'{"performance":"Bon","teau_recommandee":31.0,"raison_teau":"...","analyse":"...","actions":["..."],"consignes_tado":[{"nom":"NomPiece","consigne":18.5,"raison":"..."}],"alertes":[]}';
+
+  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+GEMINI_API_KEY,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      contents:[{parts:[{text:prompt}]}],
+      generationConfig:{
+        temperature:0, maxOutputTokens:2048,
+        thinkingConfig:{thinkingBudget:0},
+        responseMimeType:'application/json',
+        responseSchema:{
+          type:'OBJECT',
+          properties:{
+            performance:{type:'STRING'},
+            teau_recommandee:{type:'NUMBER'},
+            raison_teau:{type:'STRING'},
+            analyse:{type:'STRING'},
+            actions:{type:'ARRAY',items:{type:'STRING'}},
+            consignes_tado:{type:'ARRAY',items:{type:'OBJECT',properties:{nom:{type:'STRING'},consigne:{type:'NUMBER'},raison:{type:'STRING'}},required:['nom','consigne','raison']}},
+            alertes:{type:'ARRAY',items:{type:'STRING'}}
+          },
+          required:['performance','teau_recommandee','raison_teau','analyse','actions','consignes_tado','alertes']
+        }
+      }
+    })
+  })
+  .then(function(r){if(!r.ok)return r.text().then(function(t){throw new Error('Gemini '+r.status+': '+t.slice(0,300));});return r.json();})
+  .then(function(data){
+    var rawText='';
+    try{rawText=data.candidates[0].content.parts[0].text;}catch(e){throw new Error('Reponse inattendue: '+JSON.stringify(data).slice(0,300));}
+    var clean=rawText.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```\s*$/,'').trim();
+    var s=clean.indexOf('{'),e=clean.lastIndexOf('}');
+    if(s===-1||e===-1||e<=s)throw new Error('JSON invalide: '+clean.slice(0,300));
+    aiResult=JSON.parse(clean.slice(s,e+1));
+    if(!aiResult.teau_recommandee||aiResult.teau_recommandee<25||aiResult.teau_recommandee>55)
+      aiResult.teau_recommandee=teau_calc?parseFloat(teau_calc.toFixed(1)):35.0;
+    // Filtrer les consignes Tado pour ne garder que les pièces configurées
+    if(aiResult.consignes_tado){
+      var noms=cfg.rooms.map(function(r){return r.name;});
+      aiResult.consignes_tado=aiResult.consignes_tado.filter(function(c){return noms.indexOf(c.nom)!==-1;});
+    }
+    aiResult.ts=new Date();
+  })
+  .catch(function(e){aiResult={error:e.message,ts:new Date()};})
+  .then(function(){renderAI();});
+}
+
+// ── Functional ──────────────────────────────────────────────────────────────────
+function renderFunctional() {
+  var div=document.getElementById('p-functional'); if(!div) return; div.innerHTML='';
+
+  // Loi d'eau
+  var s1=mk('div','section');
+  s1.innerHTML='<div class="stitle">Loi d\'eau</div><div class="g3" style="margin-bottom:14px">'
+    +'<div><div class="lbl">T° eau à 0°C ext</div><input type="number" step="0.5" id="f-loiA" value="'+cfg.functional.loiEauA+'"></div>'
+    +'<div><div class="lbl">Pente (°C/°C)</div><input type="number" step="0.05" id="f-loiB" value="'+cfg.functional.loiEauB+'"></div>'
+    +'<div><div class="lbl">Point équilibre (°C)</div><input type="number" step="0.5" id="f-loiBal" value="'+cfg.functional.tBalance+'"></div>'
+    +'</div>';
+  var bar=mk('div','loi-bar');
+  [-10,-5,0,5,10,15,20].forEach(function(t){
+    var v=tEauCalc(t),off=t>=cfg.functional.tBalance,col=v>45?'#f85149':v>35?'#f59e0b':'#3fb950';
+    var c=mk('div','loi-cell');c.style.cssText='opacity:'+(off?0.4:1)+';border:1px solid '+(off?'#21262d':'#30363d');
+    c.innerHTML='<div style="font-size:10px;color:#6b7280;margin-bottom:3px">'+t+'°ext</div><div style="font-size:15px;font-weight:700;font-family:monospace;color:'+(off?'#6b7280':col)+'">'+(off?'OFF':v.toFixed(0)+'°')+'</div>';
+    bar.append(c);
+  });
+  s1.append(bar); div.append(s1);
+  [['f-loiA','loiEauA'],['f-loiB','loiEauB'],['f-loiBal','tBalance']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.functional[x[1]]=parseFloat(e.target.value);save();renderFunctional();});
+  });
+
+  // Consignes
+  var s2=mk('div','section');
+  s2.innerHTML='<div class="stitle">Consignes</div><div class="g3">'
+    +'<div><div class="lbl">Jour (°C)</div><input type="number" step="0.5" id="f-cJ" value="'+cfg.functional.consigneJour+'"></div>'
+    +'<div><div class="lbl">Nuit (°C)</div><input type="number" step="0.5" id="f-cN" value="'+cfg.functional.consigneNuit+'"></div>'
+    +'<div><div class="lbl">ECS (°C)</div><input type="number" step="1" id="f-cE" value="'+cfg.functional.consigneECS+'"></div>'
+    +'<div><div class="lbl">Début nuit</div><input type="time" id="f-hN" value="'+cfg.functional.heureNuit+'"></div>'
+    +'<div><div class="lbl">Fin nuit</div><input type="time" id="f-hJ" value="'+cfg.functional.heureJour+'"></div>'
+    +'<div><div class="lbl">Hystérésis ECS</div><input type="number" step="1" id="f-hE" value="'+cfg.functional.hystECS+'"></div>'
+    +'</div>';
+  div.append(s2);
+  [['f-cJ','consigneJour'],['f-cN','consigneNuit'],['f-cE','consigneECS'],['f-hE','hystECS']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.functional[x[1]]=parseFloat(e.target.value);save();});
+  });
+  [['f-hN','heureNuit'],['f-hJ','heureJour']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.functional[x[1]]=e.target.value;save();});
+  });
+
+  // Tarification
+  var s3=mk('div','section');
+  s3.innerHTML='<div class="stitle">Tarification HP/HC</div><div class="g2" style="margin-bottom:10px">'
+    +'<div><div class="lbl">Début HC (soir)</div><input type="time" id="f-debutHC" value="'+cfg.tariff.debutHC+'"></div>'
+    +'<div><div class="lbl">Fin HC (matin)</div><input type="time" id="f-finHC" value="'+cfg.tariff.finHC+'"></div>'
+    +'</div><div class="g2">'
+    +'<div><div class="lbl">Prix HP (€/kWh)</div><input type="number" step="0.001" id="f-pHP" value="'+cfg.tariff.prixHP+'"></div>'
+    +'<div><div class="lbl">Prix HC (€/kWh)</div><input type="number" step="0.001" id="f-pHC" value="'+cfg.tariff.prixHC+'"></div>'
+    +'</div>';
+  div.append(s3);
+  [['f-debutHC','debutHC'],['f-finHC','finHC']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.tariff[x[1]]=e.target.value;save();});
+  });
+  [['f-pHP','prixHP'],['f-pHC','prixHC']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.tariff[x[1]]=parseFloat(e.target.value);save();});
+  });
+
+  // Thermique
+  var s4=mk('div','section');
+  s4.innerHTML='<div class="stitle">Paramètres thermiques maison</div><div class="g3">'
+    +'<div><div class="lbl">G — déperditions (W/°C)</div><input type="number" step="1" id="f-G" value="'+cfg.thermal.G+'"><div style="font-size:10px;color:#6b7280;margin-top:3px">Pertes = G × (T_int - T_ext)</div></div>'
+    +'<div><div class="lbl">τ — inertie (heures)</div><input type="number" step="0.5" id="f-tau" value="'+cfg.thermal.tau+'"><div style="font-size:10px;color:#6b7280;margin-top:3px">Temps de réaction thermique</div></div>'
+    +'<div><div class="lbl">Surface chauffée (m²)</div><input type="number" step="1" id="f-surf" value="'+cfg.thermal.surface+'"></div>'
+    +'</div>';
+  div.append(s4);
+  // Afficher les pertes estimées
+  var temp_ext2=cfg.entities.tExt&&haData[cfg.entities.tExt]?parseFloat(haData[cfg.entities.tExt].state):(weather&&weather.current_weather?weather.current_weather.temperature:null);
+  if (temp_ext2!==null) {
+    var t_int_moy=cfg.rooms.reduce(function(s,r){var t=haData[r.entityTemp]?parseFloat(haData[r.entityTemp].state):cfg.functional.consigneJour;return s+t;},0)/(cfg.rooms.length||1);
+    var pertes=cfg.thermal.G*(t_int_moy-temp_ext2);
+    var note=mk('div','info');
+    note.innerHTML='<strong>Estimation pertes actuelles :</strong> '
+      +pertes.toFixed(0)+'W — '+(pertes*24/1000).toFixed(1)+' kWh/jour'
+      +' <span style="color:#6b7280">(G='+cfg.thermal.G+'W/°C × ΔT='+(t_int_moy-temp_ext2).toFixed(1)+'°C)</span>';
+    div.append(note);
+  }
+  [['f-G','G'],['f-tau','tau'],['f-surf','surface']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.thermal[x[1]]=parseFloat(e.target.value);save();});
+  });
+}
+
+// ── System ──────────────────────────────────────────────────────────────────────
+function renderSystem() {
+  var div=document.getElementById('p-system'); if(!div) return; div.innerHTML='';
+  var s1=mk('div','section');
+  s1.innerHTML='<div class="stitle">Connexion Home Assistant</div>'
+    +'<div style="display:flex;flex-direction:column;gap:10px">'
+    +'<div><div class="lbl">URL HA</div><input id="s-url" value="'+cfg.system.haUrl+'"></div>'
+    +'<div><div class="lbl">Token longue durée</div><input type="password" id="s-tok" value="'+cfg.system.haToken+'" placeholder="eyJ0eXAi..."></div>'
+    +'<div class="g3">'
+    +'<div><div class="lbl">Latitude</div><input type="number" step="0.01" id="s-lat" value="'+cfg.system.lat+'"></div>'
+    +'<div><div class="lbl">Longitude</div><input type="number" step="0.01" id="s-lon" value="'+cfg.system.lon+'"></div>'
+    +'<div><div class="lbl">Refresh (min)</div><input type="number" min="1" max="60" id="s-ref" value="'+cfg.system.refreshMin+'"></div>'
+    +'</div></div>';
+  div.append(s1);
+  [['s-url','haUrl'],['s-tok','haToken']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.system[x[1]]=e.target.value;save();});
+  });
+  [['s-lat','lat'],['s-lon','lon'],['s-ref','refreshMin']].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.addEventListener('change',function(e){cfg.system[x[1]]=parseFloat(e.target.value);save();});
+  });
+
+  var s2=mk('div','section');
+  s2.innerHTML='<div class="stitle">Entités PAC (CAN bus)</div>';
+  [['tExt','T° extérieure'],['tEauDep','T° eau départ'],['copInst','COP instantané'],['puissElec','Puissance élec (W)'],['puissTherm','Puissance therm (W)']].forEach(function(x){
+    var row=mk('div','frow');
+    row.innerHTML='<div style="font-size:11px;color:#8b949e">'+x[1]+'</div><input id="s-e-'+x[0]+'" value="'+(cfg.entities[x[0]]||'')+'" placeholder="sensor.entity_id">';
+    s2.append(row);
+    row.querySelector('input').addEventListener('change',function(e){cfg.entities[x[0]]=e.target.value;save();});
+  });
+  div.append(s2);
+
+  var s3=mk('div','section');
+  s3.innerHTML='<div class="stitle">Pièces Tado</div>';
+  var roomList=mk('div');
+  function rebuildRooms() {
+    roomList.innerHTML='';
+    if (cfg.rooms.length===0) {
+      roomList.innerHTML='<div style="font-size:11px;color:#6b7280;padding:4px 0 8px">Aucune pièce configurée.</div>';
+    } else {
+      cfg.rooms.forEach(function(r){
+        var box=mk('div','troom');
+        box.innerHTML='<div class="troom-hdr"><span class="troom-name">'+r.name+(r.etage?'<span style="font-size:10px;color:#6b7280;margin-left:6px">'+r.etage+'</span>':'')+'</span><button class="btn-del">Supprimer</button></div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'
+          +'<div><div class="lbl">Capteur température</div><input class="inp-t" value="'+(r.entityTemp||'')+'" placeholder="sensor.tado_..."></div>'
+          +'<div><div class="lbl">Entité climate</div><input class="inp-s" value="'+(r.entitySetpoint||'')+'" placeholder="climate.tado_..."></div>'
+          +'<div><div class="lbl">Étage</div><input class="inp-e" value="'+(r.etage||'')+'" placeholder="RDC, 1er étage..."></div>'
+          +'<div><div class="lbl">Surface (m²)</div><input type="number" step="0.5" class="inp-surf" value="'+(r.surface||'')+'" placeholder="Ex: 25"></div>'
+          +'</div>';
+        box.querySelector('.btn-del').addEventListener('click',function(){cfg.rooms=cfg.rooms.filter(function(x){return x.id!==r.id;});save();rebuildRooms();});
+        box.querySelector('.inp-t').addEventListener('change',function(e){r.entityTemp=e.target.value;save();});
+        box.querySelector('.inp-s').addEventListener('change',function(e){r.entitySetpoint=e.target.value;save();});
+        box.querySelector('.inp-e').addEventListener('change',function(e){r.etage=e.target.value;save();rebuildRooms();});
+        box.querySelector('.inp-surf').addEventListener('change',function(e){r.surface=parseFloat(e.target.value)||0;save();});
+        roomList.append(box);
+      });
+    }
+  }
+  rebuildRooms();
+  s3.append(roomList);
+  var addbox=mk('div','addbox');
+  addbox.innerHTML='<div style="font-size:11px;font-weight:600;color:#58a6ff;margin-bottom:10px">Ajouter une pièce Tado</div>'
+    +'<div class="g3" style="margin-bottom:8px">'
+    +'<div><div class="lbl">Nom *</div><input id="nr-n" placeholder="Ex: Salon"></div>'
+    +'<div><div class="lbl">Capteur température</div><input id="nr-t" placeholder="sensor.tado_salon_temperature"></div>'
+    +'<div><div class="lbl">Entité climate</div><input id="nr-s" placeholder="climate.tado_salon"></div>'
+    +'</div>'
+    +'<div class="g2" style="margin-bottom:10px">'
+    +'<div><div class="lbl">Étage</div><input id="nr-e" placeholder="Ex: RDC, 1er étage, Sous-sol..."></div>'
+    +'<div><div class="lbl">Surface (m²)</div><input type="number" step="0.5" id="nr-surf" placeholder="Ex: 25"></div>'
+    +'</div>'
+    +'<button class="btn-add" id="btn-add">Ajouter cette pièce</button>';
+  s3.append(addbox);
+  div.append(s3);
+  document.getElementById('btn-add').addEventListener('click',function(){
+    var name=(document.getElementById('nr-n').value||'').trim();
+    var temp=(document.getElementById('nr-t').value||'').trim();
+    var sp=(document.getElementById('nr-s').value||'').trim();
+    if (!name){document.getElementById('nr-n').style.borderColor='#f85149';document.getElementById('nr-n').focus();return;}
+    document.getElementById('nr-n').style.borderColor='';
+    var etage=(document.getElementById('nr-e').value||'').trim();
+    var surf=parseFloat(document.getElementById('nr-surf').value)||0;
+    cfg.rooms.push({id:Date.now(),name:name,entityTemp:temp,entitySetpoint:sp,etage:etage,surface:surf});
+    save(); document.getElementById('nr-n').value=''; document.getElementById('nr-t').value=''; document.getElementById('nr-s').value=''; document.getElementById('nr-e').value=''; document.getElementById('nr-surf').value='';
+    rebuildRooms();
+  });
+  div.append(mk('div','note','💡 Trouver les entity_id Tado : HA → Outils de développement → États → filtrer "tado". Copiez l\'entity_id exact.'));
+}
+
+renderCurrent();
+appRefresh();
+setInterval(appRefresh,(cfg.system.refreshMin||5)*60000);
+</script>
+</body>
+</html>
