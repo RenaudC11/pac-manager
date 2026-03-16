@@ -71,7 +71,7 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.3</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.4</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
@@ -275,8 +275,8 @@ function renderDashboard() {
   var tEauCalcVal = tExt!==null ? tEauCalc(tExt) : null;
   var tEauAct = cfg.entities.tEauDep&&haData[cfg.entities.tEauDep] ? parseFloat(haData[cfg.entities.tEauDep].state) : null;
   var cop = cfg.entities.copInst&&haData[cfg.entities.copInst] ? parseFloat(haData[cfg.entities.copInst].state) : null;
-  var pw = cfg.entities.puissElec&&haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state) : null;
-  var pt = cfg.entities.puissTherm&&haData[cfg.entities.puissTherm] ? parseFloat(haData[cfg.entities.puissTherm].state) : null;
+  var pw = cfg.entities.puissElec&&haData[cfg.entities.puissElec] ? parseFloat(haData[cfg.entities.puissElec].state)*1000 : null;
+  var pt = cfg.entities.puissTherm&&haData[cfg.entities.puissTherm] ? parseFloat(haData[cfg.entities.puissTherm].state)*1000 : null;
   var modePAC = detectModePAC(tEauAct, pw);
   var pacColor = modePAC==='CHAUFFAGE'?'#3fb950':modePAC==='ECS'?'#f59e0b':'#6b7280';
   var hc = isHC();
@@ -303,8 +303,8 @@ function renderDashboard() {
     ['T° eau actuelle', tEauAct!==null?fmt(tEauAct):null, '°C', tEauAct?(tEauAct>45?'Mode ECS':'Chauffage'):'Non configuré', '#f59e0b'],
     ['T° eau cible', tEauCalcVal!==null?fmt(tEauCalcVal):null, '°C', 'Loi d\'eau', '#d29922'],
     ['COP', cop!==null?fmt(cop,2):null, '', cop?(cop>4?'Excellent':cop>3?'Bon':'Moyen'):'', '#3fb950'],
-    ['Puissance élec.', pw!==null?String(Math.round(pw)):null, 'W', pw===null?'Non configuré':pw<70?'En veille':'En marche', '#f85149'],
-    ['Puissance therm.', pt!==null?String(Math.round(pt)):null, 'W', pt&&pw&&pw>0?'COP='+((pt/pw).toFixed(1)):'', '#a78bfa'],
+    ['Puissance élec.', pw!==null?(pw/1000).toFixed(2):null, 'kW', pw===null?'Non configuré':pw<70?'En veille':'En marche', '#f85149'],
+    ['Puissance therm.', pt!==null?(pt/1000).toFixed(2):null, 'kW', pt&&pw&&pw>0?'COP='+((pt/pw).toFixed(1)):'', '#a78bfa'],
     ['Mode PAC', modePAC==='ARRET'?'Veille':modePAC==='CHAUFFAGE'?'Chauffe':'ECS', '', (isNight()?'Nuit ':'Jour ')+cfg.functional[isNight()?'consigneNuit':'consigneJour']+'°C', pacColor]
   ];
   metrics.forEach(function(x){
@@ -330,8 +330,8 @@ function renderDashboard() {
     bs.innerHTML='<div class="stitle">Bilan thermique temps réel</div>'
       +'<div class="g-auto">'
       +'<div class="metric" style="border-left:3px solid #58a6ff"><div class="lbl">T° int. moy.</div><div class="mval">'+tInt.toFixed(1)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">°C</span></div><div style="font-size:10px;color:#6b7280;margin-top:3px">'+methode+'</div></div>'
-      +'<div class="metric" style="border-left:3px solid #f85149"><div class="lbl">Pertes estimées</div><div class="mval">'+Math.round(pertes)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">W</span></div><div style="font-size:10px;color:#6b7280;margin-top:3px">G='+cfg.thermal.G+'W/°C × ΔT='+(tInt-tExt).toFixed(1)+'°C</div></div>'
-      +(pt!==null&&modePAC==='CHAUFFAGE'?'<div class="metric" style="border-left:3px solid #a78bfa"><div class="lbl">Production PAC</div><div class="mval">'+Math.round(pt)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">W</span></div><div style="font-size:10px;color:#6b7280;margin-top:3px">Mode chauffage</div></div>':'')
+      +'<div class="metric" style="border-left:3px solid #f85149"><div class="lbl">Pertes estimées</div><div class="mval">'+(pertes/1000).toFixed(2)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">kW</span></div><div style="font-size:10px;color:#6b7280;margin-top:3px">G='+cfg.thermal.G+'W/°C × ΔT='+(tInt-tExt).toFixed(1)+'°C</div></div>'
+      +(pt!==null&&modePAC==='CHAUFFAGE'?'<div class="metric" style="border-left:3px solid #a78bfa"><div class="lbl">Production PAC</div><div class="mval">'+(pt/1000).toFixed(2)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">kW</span></div><div style="font-size:10px;color:#6b7280;margin-top:3px">Mode chauffage</div></div>':'')
       +'<div class="metric" style="border-left:3px solid '+bilanCol+'"><div class="lbl">Bilan</div><div class="mval" style="font-size:13px;color:'+bilanCol+'">'+bilanTxt+'</div></div>'
       +'</div>';
     div.append(bs);
@@ -466,8 +466,8 @@ function runAI() {
   var tEauCalcVal=tExt!==null?tEauCalc(tExt):null;
   var tEauAct=cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null;
   var cop=cfg.entities.copInst&&haData[cfg.entities.copInst]?parseFloat(haData[cfg.entities.copInst].state):null;
-  var pw=cfg.entities.puissElec&&haData[cfg.entities.puissElec]?parseFloat(haData[cfg.entities.puissElec].state):null;
-  var pt=cfg.entities.puissTherm&&haData[cfg.entities.puissTherm]?parseFloat(haData[cfg.entities.puissTherm].state):null;
+  var pw=cfg.entities.puissElec&&haData[cfg.entities.puissElec]?parseFloat(haData[cfg.entities.puissElec].state)*1000:null;
+  var pt=cfg.entities.puissTherm&&haData[cfg.entities.puissTherm]?parseFloat(haData[cfg.entities.puissTherm].state)*1000:null;
   var modePAC=detectModePAC(tEauAct,pw);
   var hc=isHC(), mins=minsJusquaChangement();
   var tInt=tIntMoyenne();
@@ -640,7 +640,7 @@ function renderParams() {
   if (tExt2!==null && tInt2!==null) {
     var pActuelles=cfg.thermal.G*(tInt2-tExt2);
     var ni=mk('div','info');
-    ni.innerHTML='<strong>Estimation pertes actuelles :</strong> '+pActuelles.toFixed(0)+'W — '+(pActuelles*24/1000).toFixed(1)+' kWh/jour'
+    ni.innerHTML='<strong>Estimation pertes actuelles :</strong> '+(pActuelles/1000).toFixed(2)+'kW — '+(pActuelles*24/1000).toFixed(1)+' kWh/jour'
       +' <span style="color:#6b7280">(G='+cfg.thermal.G+'W/°C × ΔT='+(tInt2-tExt2).toFixed(1)+'°C, Tint_moy='+tInt2.toFixed(1)+'°C)</span>';
     div.append(ni);
   }

@@ -1,6 +1,6 @@
 name: "PAC Manager"
 description: "Gestion intelligente PAC Vitocal 150-A avec IA"
-version: "1.9.3"
+version: "1.9.4"
 slug: "pac_manager"
 init: false
 arch:
