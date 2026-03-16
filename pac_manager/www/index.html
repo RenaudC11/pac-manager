@@ -71,7 +71,7 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.7</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.6</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
@@ -137,60 +137,31 @@ function loadCfg() {
 var cfg = loadCfg();
 var haData = {}, weather = null, lastUpd = null, aiResult = null, currentTab = 'dashboard';
 
-// Charger config depuis HA input_text (prioritaire, survit au changement de PC)
-function haLoadConfig() {
-  if (!cfg.system.haToken || !cfg.system.haUrl) return;
-  fetch(cfg.system.haUrl + '/api/states/input_text.pac_manager_config', {
-    headers: {Authorization: 'Bearer ' + cfg.system.haToken}
-  })
+// Charger config depuis serveur (prioritaire, survit au changement de PC)
+fetch(window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') + '/pac-config')
   .then(function(r) { return r.ok ? r.json() : null; })
-  .then(function(data) {
-    if (!data || !data.state || data.state === 'unknown' || data.state.length < 10) return;
-    try {
-      var sc = JSON.parse(data.state);
-      cfg = parseCfg(sc);
-      try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {}
-      var d = document.getElementById('save-dot');
-      if (d) { d.style.background = '#3fb950'; d.title = 'Config chargée depuis HA'; }
-      renderCurrent();
-    } catch(e) {}
+  .then(function(sc) {
+    if (!sc || Object.keys(sc).length === 0) return;
+    cfg = parseCfg(sc);
+    try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {}
+    var d = document.getElementById('save-dot');
+    if (d) { d.style.background = '#3fb950'; d.title = 'Config chargée depuis serveur'; }
+    renderCurrent();
   })
   .catch(function() {});
-}
-haLoadConfig();
 
 function save() {
   try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {}
-  // Sauvegarder dans HA input_text (persiste entre navigateurs/PC)
-  if (!cfg.system.haToken || !cfg.system.haUrl) {
+  fetch(window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') + '/pac-config', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(cfg)
+  }).then(function(r) {
     var d = document.getElementById('save-dot');
-    if (d) { d.style.background = '#d29922'; d.title = 'Token HA manquant — localStorage uniquement'; }
-    return;
-  }
-  var payload = JSON.stringify(cfg);
-  if (payload.length > 255) {
-    // input_text limité à 255 chars — utiliser input_text multi ou stocker compressé
-    // On stocke dans un helper text via l'API service
-    fetch(cfg.system.haUrl + '/api/services/input_text/set_value', {
-      method: 'POST',
-      headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'},
-      body: JSON.stringify({entity_id: 'input_text.pac_manager_config', value: payload.slice(0, 255)})
-    }).catch(function(){});
-    // Stocker le reste via un attribut custom — utiliser storage API
-    fetch(cfg.system.haUrl + '/api/states/input_text.pac_manager_config', {
-      method: 'POST',
-      headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'},
-      body: JSON.stringify({state: payload.length > 16384 ? payload.slice(0,16384) : payload, attributes: {friendly_name: 'PAC Manager Config', restored: true}})
-    })
-    .then(function(r) {
-      var d = document.getElementById('save-dot');
-      if (d) { d.style.background = r.ok?'#3fb950':'#f85149'; d.title = r.ok?'Config sauvegardée dans HA':'Erreur: '+r.status+' — vérifier input_text.pac_manager_config'; }
-    })
-    .catch(function(e) {
-      var d = document.getElementById('save-dot');
-      if (d) { d.style.background = '#f85149'; d.title = 'Erreur réseau: '+e.message; }
-    });
-  }
+    if (d) { d.style.background = r.ok ? '#3fb950' : '#f85149'; d.title = r.ok ? 'Config sauvegardée' : 'Erreur sauvegarde'; }
+  }).catch(function() {
+    var d = document.getElementById('save-dot');
+    if (d) { d.style.background = '#d29922'; d.title = 'Serveur config indisponible (localStorage ok)'; }
+  });
 }
 
 function tEauCalc(t) { return Math.max(25, Math.min(55, cfg.functional.loiEauA + cfg.functional.loiEauB * t)); }
