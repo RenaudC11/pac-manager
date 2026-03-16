@@ -521,7 +521,7 @@ function runAI() {
     +'TARIFS24H: '+tarif24+'\n'
     +'LOI_EAU: Teau='+cfg.functional.loiEauA+'+('+cfg.functional.loiEauB+'xText) equil='+cfg.functional.tBalance+'C\n'
     +'CONSIGNES: jour='+cfg.functional.consigneJour+'C nuit='+cfg.functional.consigneNuit+'C\n'
-    +'REGLES: teau_recommandee=temp eau circuit 25-55C(PAS temp ext). Si ECS: ne pas changer consignes. Si HC: peut monter Tado +0.5C. Si HP et pieces ok: peut baisser -0.5C.\n'
+    +'REGLES: teau_recommandee=temp eau circuit 25-55C(PAS temp ext). Si ECS: ne pas changer consignes. Si HC actuel: DOIT proposer consignes_tado en montant chaque piece de +0.5 a +1C par rapport a sa consigne cible (stocker chaleur bon marche). Si passage HC dans moins de tau=8h et froid prevu: anticiper en montant maintenant. Si HP actuel et pieces a consigne depuis >30min: proposer baisse de -0.5C pour economiser. Toujours mettre ces ajustements dans consignes_tado avec raison tarifaire explicite.\n'
     +'JSON(une phrase par texte):\n'
     +'{"performance":"Bon","teau_recommandee":31.0,"raison_teau":"...","analyse":"...","actions":["..."],"consignes_tado":[{"nom":"NomPiece","consigne":18.5,"raison":"..."}],"alertes":[]}';
 
