@@ -1,0 +1,21 @@
+name: "PAC Manager"
+description: "Gestion intelligente PAC Vitocal 150-A avec IA"
+version: "1.9.3"
+slug: "pac_manager"
+init: false
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+ingress: true
+ingress_port: 8099
+panel_icon: "mdi:heat-pump"
+panel_title: "PAC Manager"
+homeassistant_api: false
+hassio_api: false
+map: []
+options:
+  gemini_api_key: ""
+schema:
+  gemini_api_key: str
