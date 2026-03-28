@@ -1,5 +1,5 @@
 #!/usr/bin/with-contenv sh
 GEMINI_KEY=$(python3 -c "import json; d=json.load(open('/data/options.json')); print(d.get('gemini_api_key',''))" 2>/dev/null || echo "")
 sed -i "s|__GEMINI_API_KEY__|${GEMINI_KEY}|g" /var/www/html/index.html
-echo "[PAC Manager] v2.0.0 démarré — clé Gemini: ${#GEMINI_KEY} car."
+echo "[PAC Manager] v2.0.2 démarré — clé Gemini: ${#GEMINI_KEY} car."
 exec nginx -g "daemon off;"

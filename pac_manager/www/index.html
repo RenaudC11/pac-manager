@@ -37,6 +37,7 @@ button{font-family:inherit;cursor:pointer}
 .btn:disabled{opacity:.5;cursor:wait}
 .btn-green{border-radius:6px;padding:7px 14px;font-size:12px;font-weight:500;background:#3fb95022;border:1px solid #3fb95055;color:#3fb950}
 .btn-green:disabled{opacity:.5;cursor:wait}
+.btn-warn{border-radius:6px;padding:7px 14px;font-size:12px;font-weight:500;background:#d2992222;border:1px solid #d2992255;color:#d29922}
 .btn-add{border-radius:6px;padding:8px 16px;font-size:12px;font-weight:600;background:#1f6feb33;border:1px solid #58a6ff66;color:#58a6ff;width:100%;margin-top:8px}
 .btn-del{background:none;border:1px solid #f8514944;color:#f85149;border-radius:4px;padding:4px 8px;font-size:11px;flex-shrink:0}
 .badge{border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600}
@@ -71,12 +72,11 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v2.0.0</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v2.0.2</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
     <span style="font-size:10px;color:#6b7280" id="status">—</span>
-    <span class="dot" id="save-dot" style="background:#6b7280" title="Config non sauvegardée sur serveur"></span>
     <button style="background:none;border:1px solid #30363d;color:#8b949e;border-radius:5px;padding:4px 9px;font-size:11px" onclick="appRefresh()">⟳</button>
   </div>
 </div>
@@ -136,94 +136,38 @@ function loadCfg() {
 
 var cfg = loadCfg();
 var haData = {}, weather = null, lastUpd = null, aiResult = null, currentTab = 'dashboard';
-// ── Persistance config via sensor.pac_manager_config (attributs HA, sans limite) ──
-var HA_ENTITY = 'sensor.pac_manager_config';───────────
-// ── Persistance config via sensor.pac_manager_config (attributs HA, sans limite) ──
-var HA_ENTITY = 'sensor.pac_manager_config';
-// Chargement unique au démarrage — pas de boucle
-var haConfigLoaded = false;
 
-function haLoadConfig() {
-  if (haConfigLoaded) return;
-  haConfigLoaded = true;
-  if (!cfg.system.haToken || !cfg.system.haUrl) {
-    var d = document.getElementById('save-dot');
-    if (d) { d.style.background = '#6b7280'; d.title = 'Token HA non configuré — onglet Système'; }
-    return;
-  fetch(cfg.system.haUrl + '/api/states/' + HA_ENTITY, {
-  fetch(cfg.system.haUrl + '/api/states/' + HA_ENTITY, {
-    headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'}
-  })
-  .then(function(r) { return r.ok ? r.json() : null; })
-  .then(function(data) {
-    // Config stockée dans les attributs (pas de limite de taille)
-    var haState = data && data.attributes && data.attributes.config && data.attributes.config.length > 10
-                  ? data.attributes.config : null;
-    var lsRaw = localStorage.getItem(SK);
-    var lsHasData = lsRaw && lsRaw.length > 10;
-    var d = document.getElementById('save-dot');
-
-    if (!haState && lsHasData) {
-      // Première fois : migrer localStorage → HA
-      fetch(cfg.system.haUrl + '/api/states/' + HA_ENTITY, {
-        method: 'POST',
-        headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'},
-        body: JSON.stringify({state: 'ok', attributes: {friendly_name: 'PAC Manager Config', config: lsRaw, updated: new Date().toISOString()}})
-      }).then(function(r) {
-        if (d) { d.style.background = r.ok ? '#3fb950' : '#f85149'; d.title = r.ok ? 'Config migrée localStorage → HA ✓' : 'Erreur migration HA ' + r.status; }
-      });
-    } else if (haState) {
-      // HA a des données → charger et écraser localStorage
-      try {
-        var sc = JSON.parse(haState);
-        cfg = parseCfg(sc);
-        try { localStorage.setItem(SK, haState); } catch(e) {}
-        if (d) { d.style.background = '#3fb950'; d.title = 'Config chargée depuis HA ✓'; }
-        renderCurrent();
-      } catch(e) {
-        if (d) { d.style.background = '#f85149'; d.title = 'Erreur parsing config HA: ' + e.message; }
-      }
-    } else {
-      if (d) { d.style.background = '#6b7280'; d.title = 'HA vide + localStorage vide — config par défaut'; }
-    }
-  })
-  .catch(function(e) {
-    var d = document.getElementById('save-dot');
-    if (d) { d.style.background = '#d29922'; d.title = 'HA inaccessible: ' + e.message; }
-  });
+// ── Sauvegarde locale uniquement (fiable depuis l'ingress HA) ─────────────────
+function save() {
+  try { localStorage.setItem(SK, JSON.stringify(cfg)); } catch(e) {}
 }
 
-function save() {
-  var payload = JSON.stringify(cfg);
-  try { localStorage.setItem(SK, payload); } catch(e) {}
-  if (!cfg.system.haToken || !cfg.system.haUrl) {
-    var d = document.getElementById('save-dot');
-    if (d) { d.style.background = '#6b7280'; d.title = 'Token HA non configuré — onglet Système'; }
-    return;
-  }
-  // POST /api/states/ — stocke la config dans les attributs du sensor (pas de limite de taille)
-  fetch(cfg.system.haUrl + '/api/states/' + HA_ENTITY, {
-    method: 'POST',
-    headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      state: 'ok',
-      attributes: {friendly_name: 'PAC Manager Config', config: payload, updated: new Date().toISOString()}
-    })
-  })
-  .then(function(r) {
-    var d = document.getElementById('save-dot');
-    if (r.ok) {
-      if (d) { d.style.background = '#3fb950'; d.title = 'Config sauvegardée dans HA ✓'; }
-    } else {
-      r.text().then(function(t) {
-        if (d) { d.style.background = '#f85149'; d.title = 'HA ' + r.status + ': ' + t.slice(0,120); }
-      });
+// ── Export / Import config ────────────────────────────────────────────────────
+function exportConfig() {
+  var data = JSON.stringify(cfg, null, 2);
+  var blob = new Blob([data], {type: 'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'pac-manager-config.json';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function importConfig(file) {
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var sc = JSON.parse(e.target.result);
+      cfg = parseCfg(sc);
+      save();
+      alert('Config importée avec succès ! L\'appli va se recharger.');
+      location.reload();
+    } catch(err) {
+      alert('Erreur import : ' + err.message);
     }
-  })
-  .catch(function(e) {
-    var d = document.getElementById('save-dot');
-    if (d) { d.style.background = '#f85149'; d.title = 'Réseau: ' + e.message; }
-  });
+  };
+  reader.readAsText(file);
 }
 
 function tEauCalc(t) { return Math.max(25, Math.min(55, cfg.functional.loiEauA + cfg.functional.loiEauB * t)); }
@@ -345,31 +289,27 @@ function renderDashboard() {
   var mins = minsJusquaChangement();
   var tarifStr = (hc?'HC':'HP')+' — change dans '+Math.floor(mins/60)+'h'+(mins%60>0?mins%60+'min':'');
 
-  // Bandeau tarifaire
   var tb = mk('div', hc?'tariff-bar tariff-hc':'tariff-bar tariff-hp');
   tb.innerHTML = '<span class="badge '+(hc?'badge-hc':'badge-hp')+'">'+(hc?'Heures Creuses':'Heures Pleines')+'</span>'
     +'<span style="font-size:11px;color:#8b949e">'+tarifStr+'</span>'
-    +'<span style="margin-left:auto;font-size:11px;font-weight:600;color:'+(hc?'#3fb950':'#f85149')+'">'+prixActuel().toFixed(2)+' €/kWh</span>';
+    +'<span style="margin-left:auto;font-size:11px;font-weight:600;color:'+(hc?'#3fb950':'#f85149')+'">'+prixActuel().toFixed(4)+' €/kWh</span>';
   div.append(tb);
 
   if (pw && pw > 70) {
     var ch = mk('div'); ch.style.cssText='font-size:10px;color:#6b7280;margin-bottom:12px;text-align:right';
-    ch.textContent='Coût estimé : '+(pw/1000*prixActuel()).toFixed(3)+' €/h · '+(pw/1000*prixActuel()*24).toFixed(2)+' €/jour si continu';
+    ch.textContent='Coût estimé : '+(pw/1000*prixActuel()).toFixed(4)+' €/h · '+(pw/1000*prixActuel()*24).toFixed(2)+' €/jour si continu';
     div.append(ch);
   }
 
-  // Métriques
   var mg = mk('div','g-auto');
-  var metrics = [
-    ['T° extérieure', tExt!==null?fmt(tExt):null, '°C', cfg.entities.tExt&&haData[cfg.entities.tExt]?'Capteur HA':'Open-Meteo', '#58a6ff'],
-    ['T° eau actuelle', tEauAct!==null?fmt(tEauAct):null, '°C', tEauAct?(tEauAct>45?'Mode ECS':'Chauffage'):'Non configuré', '#f59e0b'],
-    ['T° eau cible', tEauCalcVal!==null?fmt(tEauCalcVal):null, '°C', 'Loi d\'eau', '#d29922'],
-    ['COP', cop!==null?fmt(cop,2):null, '', cop?(cop>4?'Excellent':cop>3?'Bon':'Moyen'):'', '#3fb950'],
-    ['Puissance élec.', pw!==null?(pw/1000).toFixed(2):null, 'kW', pw===null?'Non configuré':pw<70?'En veille':'En marche', '#f85149'],
-    ['Puissance therm.', pt!==null?(pt/1000).toFixed(2):null, 'kW', pt&&pw&&pw>0?'COP='+((pt/pw).toFixed(1)):'', '#a78bfa'],
-    ['Mode PAC', modePAC==='ARRET'?'Veille':modePAC==='CHAUFFAGE'?'Chauffe':'ECS', '', (isNight()?'Nuit ':'Jour ')+cfg.functional[isNight()?'consigneNuit':'consigneJour']+'°C', pacColor]
-  ];
-  metrics.forEach(function(x){
+  [['T° extérieure', tExt!==null?fmt(tExt):null, '°C', cfg.entities.tExt&&haData[cfg.entities.tExt]?'Capteur HA':'Open-Meteo', '#58a6ff'],
+   ['T° eau actuelle', tEauAct!==null?fmt(tEauAct):null, '°C', tEauAct?(tEauAct>45?'Mode ECS':'Chauffage'):'Non configuré', '#f59e0b'],
+   ['T° eau cible', tEauCalcVal!==null?fmt(tEauCalcVal):null, '°C', 'Loi d\'eau', '#d29922'],
+   ['COP', cop!==null?fmt(cop,2):null, '', cop?(cop>4?'Excellent':cop>3?'Bon':'Moyen'):'', '#3fb950'],
+   ['Puissance élec.', pw!==null?(pw/1000).toFixed(2):null, 'kW', pw===null?'Non configuré':pw<70?'En veille':'En marche', '#f85149'],
+   ['Puissance therm.', pt!==null?(pt/1000).toFixed(2):null, 'kW', pt&&pw&&pw>0?'COP='+((pt/pw).toFixed(1)):'', '#a78bfa'],
+   ['Mode PAC', modePAC==='ARRET'?'Veille':modePAC==='CHAUFFAGE'?'Chauffe':'ECS', '', (isNight()?'Nuit ':'Jour ')+cfg.functional[isNight()?'consigneNuit':'consigneJour']+'°C', pacColor]
+  ].forEach(function(x){
     var c=mk('div','metric'); c.style.borderLeft='3px solid '+x[4];
     c.innerHTML='<div class="lbl">'+x[0]+'</div><div class="mval">'+(x[1]||'—')+(x[2]?'<span style="font-size:12px;color:#6b7280;margin-left:2px">'+x[2]+'</span>':'')+'</div>'+(x[3]?'<div style="font-size:10px;color:#6b7280;margin-top:3px">'+x[3]+'</div>':'');
     mg.append(c);
@@ -384,13 +324,10 @@ function renderDashboard() {
     var bilan = pt!==null && modePAC==='CHAUFFAGE' ? pt - pertes : null;
     var bilanCol = bilan===null?'#6b7280':bilan>200?'#3fb950':bilan<-200?'#f85149':'#d29922';
     var bilanTxt = bilan===null?(modePAC==='ECS'?'PAC mode ECS':modePAC==='ARRET'?'PAC à l\'arrêt':'Puissance therm. non configurée')
-      :bilan>200?'Se réchauffe (+'+Math.round(bilan)+'W)'
-      :bilan<-200?'Se refroidit ('+Math.round(bilan)+'W)'
-      :'Équilibre (±'+Math.round(Math.abs(bilan))+'W)';
+      :bilan>200?'Se réchauffe (+'+Math.round(bilan)+'W)':bilan<-200?'Se refroidit ('+Math.round(bilan)+'W)':'Équilibre (±'+Math.round(Math.abs(bilan))+'W)';
     var methode = surfTot>0?'Moy. pondérée ('+surfTot.toFixed(0)+'m²)':'Moy. simple';
     var bs = mk('div','bilan-section');
-    bs.innerHTML='<div class="stitle">Bilan thermique temps réel</div>'
-      +'<div class="g-auto">'
+    bs.innerHTML='<div class="stitle">Bilan thermique temps réel</div><div class="g-auto">'
       +'<div class="metric" style="border-left:3px solid #58a6ff"><div class="lbl">T° int. moy.</div><div class="mval">'+tInt.toFixed(1)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">°C</span></div><div style="font-size:10px;color:#6b7280;margin-top:3px">'+methode+'</div></div>'
       +'<div class="metric" style="border-left:3px solid #f85149"><div class="lbl">Pertes estimées</div><div class="mval">'+(pertes/1000).toFixed(2)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">kW</span></div><div style="font-size:10px;color:#6b7280;margin-top:3px">G='+cfg.thermal.G+'W/°C × ΔT='+(tInt-tExt).toFixed(1)+'°C</div></div>'
       +(pt!==null&&modePAC==='CHAUFFAGE'?'<div class="metric" style="border-left:3px solid #a78bfa"><div class="lbl">Production PAC</div><div class="mval">'+(pt/1000).toFixed(2)+'<span style="font-size:12px;color:#6b7280;margin-left:2px">kW</span></div><div style="font-size:10px;color:#6b7280;margin-top:3px">Mode chauffage</div></div>':'')
@@ -425,7 +362,6 @@ function renderDashboard() {
     div.append(mk('div','info','💡 Aucune pièce Tado — ajoutez-en dans l\'onglet Système.'));
   }
 
-  // Prévisions 24h
   if (weather&&weather.hourly) {
     var now=new Date(), h=weather.hourly;
     var fc=h.time.map(function(t,i){ return {time:t,temp:h.temperature_2m[i],cloud:h.cloud_cover[i]}; })
@@ -479,7 +415,7 @@ function renderAI() {
     rec.innerHTML='<div class="lbl">T° eau départ recommandée <span style="font-size:9px;color:#6b7280">(CAN bus à venir)</span></div>'
       +'<div style="display:flex;align-items:baseline;gap:8px;margin:4px 0 4px">'
       +'<span style="font-size:28px;font-weight:700;font-family:monospace;color:#3fb950">'+parseFloat(aiResult.teau_recommandee).toFixed(1)+'°C</span>'
-      +(cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?'<span style="font-size:12px;color:#6b7280">actuel: '+fmt(haData[cfg.entities.tEauDep]?parseFloat(haData[cfg.entities.tEauDep].state):null)+'°C</span>':'')
+      +(cfg.entities.tEauDep&&haData[cfg.entities.tEauDep]?'<span style="font-size:12px;color:#6b7280">actuel: '+fmt(parseFloat(haData[cfg.entities.tEauDep].state))+'°C</span>':'')
       +'</div>'+(aiResult.raison_teau?'<div style="font-size:11px;color:#8b949e">'+aiResult.raison_teau+'</div>':'');
     div.append(rec);
   }
@@ -575,7 +511,7 @@ function runAI() {
     +'THERMIQUE: G='+cfg.thermal.G+'W/C tau='+cfg.thermal.tau+'h\n'
     +'ETAT: Text='+tExt+'C('+tendance+') Teau_act='+tEauAct+'C Teau_calc='+(tEauCalcVal?tEauCalcVal.toFixed(1):null)+'C\n'
     +'  ecart='+((tEauAct&&tEauCalcVal)?(tEauAct-tEauCalcVal).toFixed(1)+'C':'?')+' mode_pac='+modePAC+' puiss_elec='+(pw!==null?Math.round(pw)+'W':'?')+' puiss_therm='+(pt!==null?Math.round(pt)+'W':'?')+'\n'
-    +'  Tint_moy='+(tInt?tInt.toFixed(1)+'C('+surfTot+'m2 ponderes)':'?')+' pertes='+(pertes?Math.round(pertes)+'W':'?')+' bilan='+(bilan?Math.round(bilan)+'W('+( bilan>200?'rechauffe':bilan<-200?'refroidit':'equilibre')+')':'?')+'\n'
+    +'  Tint_moy='+(tInt?tInt.toFixed(1)+'C('+surfTot+'m2 ponderes)':'?')+' pertes='+(pertes?Math.round(pertes)+'W':'?')+' bilan='+(bilan?Math.round(bilan)+'W('+(bilan>200?'rechauffe':bilan<-200?'refroidit':'equilibre')+')':'?')+'\n'
     +'  LOGIQUE_EQUILIBRE: Text='+tExt+'C vs equilibre='+cfg.functional.tBalance+'C → PAC '+(tExt!==null?(tExt>cfg.functional.tBalance?'DOIT etre arretee (Text>equilibre)':'PEUT chauffer (Text<equilibre)'):'inconnu')+'\n'
     +'  tarif_actuel='+(hc?'HC':'HP')+' change_dans='+Math.floor(mins/60)+'h prix='+prixActuel()+'eur/kWh\n'
     +'PIECES: '+pCtx+'\n'
@@ -586,10 +522,10 @@ function runAI() {
     +'REGLES:\n'
     +'- teau_recommandee=temperature eau circuit 25-55C, JAMAIS temperature exterieure\n'
     +'- Si mode ECS: ignorer consignes chauffage\n'
-    +'- TARIF HC (electricite bon marche='+(hc?'ACTUEL':'non actuel')+'): '+(hc?'MONTER consignes Tado +0.5 a +1C pour stocker chaleur pas chere dans inertie fonte.':'Ne pas augmenter, attendre les HC.')+'\n'
-    +'- TARIF HP (electricite chere='+(hc?'non actuel':'ACTUEL')+'): '+(hc?'':'BAISSER consignes Tado -0.5C si pieces a consigne pour economiser.')+'\n'
-    +'- Ne jamais prechauffer avant les HC: augmenter uniquement PENDANT les HC\n'
-    +'- En fin HC (passage HC->HP dans <30min): ne plus augmenter, laisser inertie fonte restituer\n'
+    +'- TARIF HC (electricite bon marche='+(hc?'ACTUEL':'non actuel')+'): '+(hc?'MONTER consignes Tado +0.5 a +1C pour stocker chaleur pas chere dans inertie fonte.':'Ne pas augmenter, attendre que les HC commencent.')+'\n'
+    +'- TARIF HP (electricite chere='+(hc?'non actuel':'ACTUEL')+'): '+(hc?'':'Maintenir ou baisser consignes Tado -0.5C si pieces a consigne.')+'\n'
+    +'- Ne JAMAIS prechauffer avant les HC, augmenter uniquement PENDANT les HC\n'
+    +'- En fin HC (passage HC->HP dans <30min): ne plus monter, laisser inertie restituer\n'
     +'JSON(une phrase par texte):\n'
     +'{"performance":"Bon","teau_recommandee":31.0,"raison_teau":"...","analyse":"...","actions":["..."],"consignes_tado":[{"nom":"NomPiece","consigne":18.5,"raison":"..."}],"alertes":[]}';
 
@@ -629,8 +565,6 @@ function runAI() {
 // ── Paramètres ──────────────────────────────────────────────────────────────────
 function renderParams() {
   var div=document.getElementById('p-params'); if(!div) return; div.innerHTML='';
-
-  // Loi d'eau
   var s1=mk('div','section');
   s1.innerHTML='<div class="stitle">Loi d\'eau</div><div class="g3" style="margin-bottom:14px">'
     +'<div><div class="lbl">T° eau à 0°C ext</div><input type="number" step="0.5" id="f-loiA" value="'+cfg.functional.loiEauA+'"></div>'
@@ -649,8 +583,6 @@ function renderParams() {
     var el=document.getElementById(x[0]); if(!el) return;
     el.addEventListener('change',function(e){cfg.functional[x[1]]=parseFloat(e.target.value);save();renderParams();});
   });
-
-  // Consignes
   var s2=mk('div','section');
   s2.innerHTML='<div class="stitle">Consignes</div><div class="g3">'
     +'<div><div class="lbl">Jour (°C)</div><input type="number" step="0.5" id="f-cJ" value="'+cfg.functional.consigneJour+'"></div>'
@@ -669,15 +601,13 @@ function renderParams() {
     var el=document.getElementById(x[0]); if(!el) return;
     el.addEventListener('change',function(e){cfg.functional[x[1]]=e.target.value;save();});
   });
-
-  // Tarification HP/HC
   var s3=mk('div','section');
   s3.innerHTML='<div class="stitle">Tarification HP/HC</div><div class="g2" style="margin-bottom:10px">'
     +'<div><div class="lbl">Début HC (soir)</div><input type="time" id="f-dHC" value="'+cfg.tariff.debutHC+'"></div>'
     +'<div><div class="lbl">Fin HC (matin)</div><input type="time" id="f-fHC" value="'+cfg.tariff.finHC+'"></div>'
     +'</div><div class="g2">'
-    +'<div><div class="lbl">Prix HP (€/kWh)</div><input type="number" step="0.001" id="f-pHP" value="'+cfg.tariff.prixHP+'"></div>'
-    +'<div><div class="lbl">Prix HC (€/kWh)</div><input type="number" step="0.001" id="f-pHC" value="'+cfg.tariff.prixHC+'"></div>'
+    +'<div><div class="lbl">Prix HP (€/kWh)</div><input type="number" step="0.0001" id="f-pHP" value="'+cfg.tariff.prixHP+'"></div>'
+    +'<div><div class="lbl">Prix HC (€/kWh)</div><input type="number" step="0.0001" id="f-pHC" value="'+cfg.tariff.prixHC+'"></div>'
     +'</div>';
   div.append(s3);
   [['f-dHC','debutHC'],['f-fHC','finHC']].forEach(function(x){
@@ -688,8 +618,6 @@ function renderParams() {
     var el=document.getElementById(x[0]); if(!el) return;
     el.addEventListener('change',function(e){cfg.tariff[x[1]]=parseFloat(e.target.value);save();});
   });
-
-  // Paramètres thermiques
   var s4=mk('div','section');
   s4.innerHTML='<div class="stitle">Paramètres thermiques maison</div><div class="g3">'
     +'<div><div class="lbl">G — déperditions (W/°C)</div><input type="number" step="1" id="f-G" value="'+cfg.thermal.G+'"><div style="font-size:10px;color:#6b7280;margin-top:3px">Pertes = G × ΔT</div></div>'
@@ -701,15 +629,12 @@ function renderParams() {
     var el=document.getElementById(x[0]); if(!el) return;
     el.addEventListener('change',function(e){cfg.thermal[x[1]]=parseFloat(e.target.value);save();});
   });
-
-  // Estimation pertes actuelles
   var tExt2=cfg.entities.tExt&&haData[cfg.entities.tExt]?parseFloat(haData[cfg.entities.tExt].state):(weather&&weather.current_weather?weather.current_weather.temperature:null);
   var tInt2=tIntMoyenne();
-  if (tExt2!==null && tInt2!==null) {
-    var pActuelles=cfg.thermal.G*(tInt2-tExt2);
+  if (tExt2!==null&&tInt2!==null) {
+    var p2=cfg.thermal.G*(tInt2-tExt2);
     var ni=mk('div','info');
-    ni.innerHTML='<strong>Estimation pertes actuelles :</strong> '+(pActuelles/1000).toFixed(2)+'kW — '+(pActuelles*24/1000).toFixed(1)+' kWh/jour'
-      +' <span style="color:#6b7280">(G='+cfg.thermal.G+'W/°C × ΔT='+(tInt2-tExt2).toFixed(1)+'°C, Tint_moy='+tInt2.toFixed(1)+'°C)</span>';
+    ni.innerHTML='<strong>Estimation pertes actuelles :</strong> '+(p2/1000).toFixed(2)+'kW — '+(p2*24/1000).toFixed(1)+' kWh/jour <span style="color:#6b7280">(G='+cfg.thermal.G+'W/°C × ΔT='+(tInt2-tExt2).toFixed(1)+'°C, Tint_moy='+tInt2.toFixed(1)+'°C)</span>';
     div.append(ni);
   }
 }
@@ -718,7 +643,18 @@ function renderParams() {
 function renderSystem() {
   var div=document.getElementById('p-system'); if(!div) return; div.innerHTML='';
 
-  // Connexion HA
+  // Sauvegarde / transfert config
+  var sx=mk('div','section');
+  sx.innerHTML='<div class="stitle">Sauvegarde & transfert de config</div>'
+    +'<div style="font-size:11px;color:#8b949e;margin-bottom:12px">La config est stockée dans le navigateur (localStorage). Pour la transférer vers un autre PC ou navigateur, exportez-la en JSON puis importez-la.</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<button class="btn-green" id="btn-export">⬇ Exporter config JSON</button>'
+    +'<label class="btn-warn" style="cursor:pointer;display:inline-flex;align-items:center">⬆ Importer config JSON<input type="file" accept=".json" id="inp-import" style="display:none"></label>'
+    +'</div>';
+  div.append(sx);
+  document.getElementById('btn-export').addEventListener('click', exportConfig);
+  document.getElementById('inp-import').addEventListener('change', function(e){ importConfig(e.target.files[0]); });
+
   var s1=mk('div','section');
   s1.innerHTML='<div class="stitle">Connexion Home Assistant</div>'
     +'<div style="display:flex;flex-direction:column;gap:10px">'
@@ -738,10 +674,9 @@ function renderSystem() {
     el.addEventListener('change',function(e){cfg.system[x[1]]=parseFloat(e.target.value);save();});
   });
 
-  // Entités PAC
   var s2=mk('div','section');
   s2.innerHTML='<div class="stitle">Entités PAC (CAN bus)</div>';
-  [['tExt','T° extérieure'],['tEauDep','T° eau départ'],['copInst','COP instantané'],['puissElec','Puissance élec (W)'],['puissTherm','Puissance therm (W)']].forEach(function(x){
+  [['tExt','T° extérieure'],['tEauDep','T° eau départ'],['copInst','COP instantané'],['puissElec','Puissance élec (kW)'],['puissTherm','Puissance therm (kW)']].forEach(function(x){
     var row=mk('div','frow');
     row.innerHTML='<div style="font-size:11px;color:#8b949e">'+x[1]+'</div><input id="s-e-'+x[0]+'" value="'+(cfg.entities[x[0]]||'')+'" placeholder="sensor.entity_id">';
     s2.append(row);
@@ -749,11 +684,9 @@ function renderSystem() {
   });
   div.append(s2);
 
-  // Pièces Tado
   var s3=mk('div','section');
   s3.innerHTML='<div class="stitle">Pièces Tado</div>';
   var roomList=mk('div');
-
   function rebuildRooms() {
     roomList.innerHTML='';
     if (cfg.rooms.length===0) {
@@ -783,8 +716,6 @@ function renderSystem() {
   }
   rebuildRooms();
   s3.append(roomList);
-
-  // Formulaire d'ajout
   var addbox=mk('div','addbox');
   addbox.innerHTML='<div style="font-size:11px;font-weight:600;color:#58a6ff;margin-bottom:10px">Ajouter une pièce Tado</div>'
     +'<div class="g2" style="margin-bottom:8px">'
@@ -799,7 +730,6 @@ function renderSystem() {
     +'<button class="btn-add" id="btn-add">Ajouter cette pièce</button>';
   s3.append(addbox);
   div.append(s3);
-
   document.getElementById('btn-add').addEventListener('click',function(){
     var name=(document.getElementById('nr-n').value||'').trim();
     var etage=(document.getElementById('nr-e').value||'').trim();
@@ -813,15 +743,11 @@ function renderSystem() {
     ['nr-n','nr-e','nr-t','nr-s','nr-surf'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
     rebuildRooms();
   });
-
-  div.append(mk('div','note','💡 <strong>Trouver les entity_id Tado</strong> : HA → Outils de développement → États → filtrer "tado". Copiez l\'entity_id exact dans les champs ci-dessus.'));
+  div.append(mk('div','note','💡 <strong>Trouver les entity_id Tado</strong> : HA → Outils de développement → États → filtrer "tado".'));
 }
 
-// ── Init ─────────────────────────────────────────────────────────────────────────
 renderCurrent();
 appRefresh();
-// Charger config HA après le premier appRefresh (token peut être dans localStorage)
-setTimeout(haLoadConfig, 800);
 setInterval(appRefresh,(cfg.system.refreshMin||5)*60000);
 </script>
 </body>
