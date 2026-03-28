@@ -71,7 +71,7 @@ button{font-family:inherit;cursor:pointer}
   <div class="logo">♨</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:#e6edf3;line-height:1">PAC Manager</div>
-    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v1.9.8</div>
+    <div style="font-size:10px;color:#6b7280">Vitocal 150-A · Lyon · v2.0.0</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
     <span class="dot" id="dot" style="background:#3fb950"></span>
@@ -136,31 +136,39 @@ function loadCfg() {
 
 var cfg = loadCfg();
 var haData = {}, weather = null, lastUpd = null, aiResult = null, currentTab = 'dashboard';
-
-// ── Persistance config via HA input_text.pac_manager_config ─────────────────
+// ── Persistance config via sensor.pac_manager_config (attributs HA, sans limite) ──
+var HA_ENTITY = 'sensor.pac_manager_config';───────────
+// ── Persistance config via sensor.pac_manager_config (attributs HA, sans limite) ──
+var HA_ENTITY = 'sensor.pac_manager_config';
 // Chargement unique au démarrage — pas de boucle
 var haConfigLoaded = false;
 
 function haLoadConfig() {
   if (haConfigLoaded) return;
   haConfigLoaded = true;
-  if (!cfg.system.haToken || !cfg.system.haUrl) return;
-  fetch(cfg.system.haUrl + '/api/states/input_text.pac_manager_config', {
+  if (!cfg.system.haToken || !cfg.system.haUrl) {
+    var d = document.getElementById('save-dot');
+    if (d) { d.style.background = '#6b7280'; d.title = 'Token HA non configuré — onglet Système'; }
+    return;
+  fetch(cfg.system.haUrl + '/api/states/' + HA_ENTITY, {
+  fetch(cfg.system.haUrl + '/api/states/' + HA_ENTITY, {
     headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'}
   })
   .then(function(r) { return r.ok ? r.json() : null; })
   .then(function(data) {
-    var haState = data && data.state && data.state !== 'unknown' && data.state.length > 10 ? data.state : null;
+    // Config stockée dans les attributs (pas de limite de taille)
+    var haState = data && data.attributes && data.attributes.config && data.attributes.config.length > 10
+                  ? data.attributes.config : null;
     var lsRaw = localStorage.getItem(SK);
     var lsHasData = lsRaw && lsRaw.length > 10;
     var d = document.getElementById('save-dot');
 
     if (!haState && lsHasData) {
       // Première fois : migrer localStorage → HA
-      fetch(cfg.system.haUrl + '/api/states/input_text.pac_manager_config', {
+      fetch(cfg.system.haUrl + '/api/states/' + HA_ENTITY, {
         method: 'POST',
         headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'},
-        body: JSON.stringify({state: lsRaw, attributes: {friendly_name: 'PAC Manager Config'}})
+        body: JSON.stringify({state: 'ok', attributes: {friendly_name: 'PAC Manager Config', config: lsRaw, updated: new Date().toISOString()}})
       }).then(function(r) {
         if (d) { d.style.background = r.ok ? '#3fb950' : '#f85149'; d.title = r.ok ? 'Config migrée localStorage → HA ✓' : 'Erreur migration HA ' + r.status; }
       });
@@ -181,7 +189,7 @@ function haLoadConfig() {
   })
   .catch(function(e) {
     var d = document.getElementById('save-dot');
-    if (d) { d.style.background = '#d29922'; d.title = 'HA inaccessible — localStorage utilisé'; }
+    if (d) { d.style.background = '#d29922'; d.title = 'HA inaccessible: ' + e.message; }
   });
 }
 
@@ -190,25 +198,31 @@ function save() {
   try { localStorage.setItem(SK, payload); } catch(e) {}
   if (!cfg.system.haToken || !cfg.system.haUrl) {
     var d = document.getElementById('save-dot');
-    if (d) { d.style.background = '#d29922'; d.title = 'Token HA manquant — localStorage uniquement'; }
+    if (d) { d.style.background = '#6b7280'; d.title = 'Token HA non configuré — onglet Système'; }
     return;
   }
-  // POST /api/states/ — crée ou met à jour l'entité input_text
-  fetch(cfg.system.haUrl + '/api/states/input_text.pac_manager_config', {
+  // POST /api/states/ — stocke la config dans les attributs du sensor (pas de limite de taille)
+  fetch(cfg.system.haUrl + '/api/states/' + HA_ENTITY, {
     method: 'POST',
     headers: {Authorization: 'Bearer ' + cfg.system.haToken, 'Content-Type': 'application/json'},
-    body: JSON.stringify({state: payload, attributes: {friendly_name: 'PAC Manager Config'}})
+    body: JSON.stringify({
+      state: 'ok',
+      attributes: {friendly_name: 'PAC Manager Config', config: payload, updated: new Date().toISOString()}
+    })
   })
   .then(function(r) {
     var d = document.getElementById('save-dot');
-    if (d) {
-      d.style.background = r.ok ? '#3fb950' : '#f85149';
-      d.title = r.ok ? 'Config sauvegardée dans HA' : 'Erreur HA ' + r.status + ' — vérifier input_text.pac_manager_config';
+    if (r.ok) {
+      if (d) { d.style.background = '#3fb950'; d.title = 'Config sauvegardée dans HA ✓'; }
+    } else {
+      r.text().then(function(t) {
+        if (d) { d.style.background = '#f85149'; d.title = 'HA ' + r.status + ': ' + t.slice(0,120); }
+      });
     }
   })
   .catch(function(e) {
     var d = document.getElementById('save-dot');
-    if (d) { d.style.background = '#f85149'; d.title = 'Erreur réseau: ' + e.message; }
+    if (d) { d.style.background = '#f85149'; d.title = 'Réseau: ' + e.message; }
   });
 }
 
